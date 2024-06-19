@@ -1,2 +1,2 @@
 # ArchFox-install
-Bash script to install ArchFox
+A small bash script designed to simplify ArchLinux installations.

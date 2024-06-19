@@ -1,0 +1,24 @@
+1.0.3-A 2024-06-21:
+  + added and tested modular profile integration
+  = changed the way the changelog is stored and displayed
+  = fixed some bugs
+1.0.2-A 2024-06-20:
+  + added functionality to S0
+  + added functionality to S1
+  + added functionality to S2
+  + added functionality to S3
+  + restored some of my mental health
+  = modified profile handling for modular use
+  = modified the help list to display profiles with their description
+1.0.1-A 2024-06-13:
+  + Added features to support configuration files in the future
+  = moved to github
+  - removed my mental health XD
+1.0.0-A 2024-06-09:
+  + started project
+  + added flag handler
+  + added some colors
+  + added dev function for color and functionality debug
+  + added basic files validation
+  + added this manual (help menu)
+    
