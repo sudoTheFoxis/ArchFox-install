@@ -849,7 +849,7 @@ exit 0
 # 2 - process aborted by user
 # 5 - sources validation failed
 # 10 - no sudo permission
-#
+# 
 #
 #
 #
