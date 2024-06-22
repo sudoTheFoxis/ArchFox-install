@@ -1,3 +1,5 @@
 #!/bin/bash
 echo "[AFI][DEV] Hello there im running"
-exit 0
+
+AFI_INIT_RETURNCODE=0;
+return;

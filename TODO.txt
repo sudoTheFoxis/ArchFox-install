@@ -1,9 +1,11 @@
 ▰ make todo list
 ▰ move to github
 ▰ modular profile handler
+▱ make AFI_MAIN that works
 ▱ check if anything works XD
-▱ checksum validaton
+▱ make update functionality
 ▱ S0 easy CLI config
 ▱ S1 easy CLI config
 ▱ S2 easy CLI config
+▱ checksum validaton
 ▱ make some optimizations

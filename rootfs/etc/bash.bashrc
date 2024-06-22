@@ -13,7 +13,6 @@ export PATH=$HOME/.local/bin:$PATH
 # custom commands
 alias neofetch='neofetch --ascii_colors 39 21 202 231 --source /etc/logo/archfox-neofetch.txt'
 alias logo='cat /etc/logo/archfox-16bit.txt'
-alias vim='nvim'
 alias codi='vscodium'
 alias ls='ls --color=auto'
 alias l='ls -al --color=auto'
