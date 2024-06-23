@@ -1,5 +1,5 @@
 #!/bin/bash
-AFI_VERSION="1.0.3-A"
+AFI_VERSION="1.0.5-A"
 AFI_AUTHOR=( sudoTheFoxis )
 
 
@@ -30,11 +30,11 @@ AFI_CONF_INITS3=true            #   if it is set to false, the installer will no
 AFI_CONF_S0_PKGS=(
     archlinux-keyring
     arch-install-scripts
+    util-linux
     dosfstools
     e2fsprogs
     coreutils
     parted
-    wipefs
     vim
 )
 
@@ -51,6 +51,7 @@ AFI_CONF_S2_ROOTPASS="root"     #   root password
 AFI_CONF_S2_PKGS=(              #   packages that will be installed on the S2 stage
     linux
     base
+    dbus-daemon-units
     efibootmgr
     linux-firmware
     networkmanager
@@ -160,7 +161,7 @@ AFI_S0 () {
         # validation
         AFI_VALIDATE  
 
-        sudo pacman --noconfirm -Syu ${AFI_CONF_S0_PKGS[*]}
+        sudo pacman --noconfirm -Sy ${AFI_CONF_S0_PKGS[*]}
 
     else
         AFI_DEBUG "S0: Running in demo mode, skipping..."
@@ -197,11 +198,13 @@ AFI_S1 () {
             name 1 BOOT \
             set 1 boot on \
             mkpart primary 258MiB -1MiB \
-            name 2 ROOT \
-            set 2 root on
+            name 2 ROOT
         
         sudo mkfs.fat -F 32 "${AFI_CONF_S1_DEV}1" # create boot fs
         sudo mkfs.ext4 "${AFI_CONF_S1_DEV}2" # craete root fs
+
+        # print partition tabble
+        lsblk -f
 
     else
         AFI_DEBUG "S1: Running in demo mode, skipping..."
@@ -223,56 +226,76 @@ AFI_S2 () {
 
         # mount prepared disk
         AFI_DEBUG "Mounting partitions in /mnt"
-        sudo mkdir /mnt && sudo mount "${AFI_CONF_S1_DEV}2" /mnt # mount ROOT on /mnt
-        sudo mkdir /mnt/boot && sudo mount "${AFI_CONF_S1_DEV}1" /mnt/boot # mount BOOT on /mnt/boot
+        sudo mount -mv "${AFI_CONF_S1_DEV}2" /mnt # mount ROOT on /mnt
+        sudo mount -mv "${AFI_CONF_S1_DEV}1" /mnt/boot # mount BOOT on /mnt/boot
+
+        # create swap file
+        AFI_DEBUG "Creating swap in /mnt/swap_deleteme"
+        sudo mkswap -U clear --size 4G --file /mnt/swap_deleteme
+        sudo swapon /mnt/swap_deleteme
 
         # install linux
-        sudo pacman --noconfirm -Syu && sudo pacstrap -U /mnt ${AFI_CONF_S2_PKGS[*]}
+        AFI_DEBUG "Cleaning pacman cache"
+        sudo pacman --noconfirm -Sc
+        AFI_DEBUG "Updating pacman database"
+        sudo pacman --noconfirm -Syy
+        AFI_DEBUG "Installing linux in /mnt"
+        sudo pacstrap /mnt ${AFI_CONF_S2_PKGS[*]}
 
         # configuration required for basic functionality
-        AFI_DEBUG "Entering the chroot environment"
-        sudo arch-chroot /mnt bash -c "
+        AFI_DEBUG "Creating init script /mnt/init_deleteme"
+        sudo printf "#!/bin/bash
 # change host name
-printf "[AFI-chroot]: changing host name\n"
-printf "$AFI_CONF_S2_HOSTNAME" > /etc/hostname
+printf \"[AFI-chroot]: changing host name\\n\"
+printf \"$AFI_CONF_S2_HOSTNAME\" > /etc/hostname
 
 # configure hosts 
-printf "[AFI-chroot]: configuring hosts\n"
-printf "127.0.0.1	localhost\n::1		localhost\n127.0.1.1	$AFI_CONF_S2_HOSTNAME.localdomain	$AFI_CONF_S2_HOSTNAME" > /etc/hosts
+printf \"[AFI-chroot]: configuring hosts\\n\"
+printf \"127.0.0.1	localhost\\n::1		localhost\\n127.0.1.1	$AFI_CONF_S2_HOSTNAME.localdomain	$AFI_CONF_S2_HOSTNAME\" > /etc/hosts
 
 # set locals
-printf "[AFI-chroot]: configuring and generating locales\n"
-printf "#archfox\nen_US.UTF-8\npl_PL.UTF-8" >> /etc/locale.gen
-printf "LANG=en_US.UTF-8\nLC_ALL=en_US.UTF-8" > /etc/locale.conf
+printf \"[AFI-chroot]: configuring and generating locales\\n\"
+printf \"#archfox\nen_US.UTF-8\\npl_PL.UTF-8\" >> /etc/locale.gen
+printf \"LANG=en_US.UTF-8\\nLC_ALL=en_US.UTF-8\" > /etc/locale.conf
 locale-gen
 
 # create user and change password for user/root
-printf "[AFI-chroot]: creating user, changing user/root passwords\n"
+printf \"[AFI-chroot]: creating user, changing user/root passwords\n\"
 useradd -m $AFI_CONF_S2_USERNAME
-usermod -p $( printf "$AFI_CONF_S2_USERPASS" | openssl passwd -1 -stdin ) $AFI_CONF_S2_USERNAME
-usermod -p $( printf "$AFI_CONF_S2_ROOTPASS" | openssl passwd -1 -stdin ) root
-sed -i "106i ${AFI_CONF_S2_USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers # give user the sudo rights
+usermod -p \$( printf \"$AFI_CONF_S2_USERPASS\" | openssl passwd -1 -stdin ) $AFI_CONF_S2_USERNAME
+usermod -p \$( printf \"$AFI_CONF_S2_ROOTPASS\" | openssl passwd -1 -stdin ) root
+sed -i \"106i ${AFI_CONF_S2_USERNAME} ALL=\(ALL:ALL\) ALL\" /etc/sudoers # give user the sudo rights
 
 # configuring bootloader
-printf "[AFI-chroot]: configuring bootloader\n"
+printf \"[AFI-chroot]: configuring bootloader\\n\"
 bootctl --path=/boot install
-printf "timeout	3\ndefault	$AFI_CONF_S2_HOSTNAME.conf" > /boot/loader/loader.conf
-printf "title	$AFI_CONF_S2_HOSTNAME\nlinux	/vmlinuz-linux\ninitrd	/initramfs-linux.img\noptions	root=/dev/sda2	rw" > /boot/loader/entries/$AFI_CONF_S2_HOSTNAME.conf
+printf \"timeout	3\\ndefault	$AFI_CONF_S2_HOSTNAME.conf\" > /boot/loader/loader.conf
+printf \"title	$AFI_CONF_S2_HOSTNAME\\nlinux	/vmlinuz-linux\\ninitrd	/initramfs-linux.img\\noptions	root=/dev/sda2	rw\" > /boot/loader/entries/$AFI_CONF_S2_HOSTNAME.conf
 
 # configure pacman and update mirrorlist
-printf "[AFI-chroot]: configuring pacman and updating mirrorlist\n"
+printf \"[AFI-chroot]: configuring pacman and updating mirrorlist\\n\"
 cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
-sed -i "s/#ParallelDownloads.*/ParallelDownloads = 5/" /etc/pacman.conf
-sed -i "/\[multilib\]/,/Include/"'s/^#//' /etc/pacman.conf
+sed -i \"s/#ParallelDownloads.*/ParallelDownloads = 5/\" /etc/pacman.conf
+sed -i \"/\[multilib\]/,/Include/\"'s/^#//' /etc/pacman.conf
 wget -q -O /etc/pacman.d/mirrorlist https://archlinux.org/mirrorlist/?country=all&protocol=http&protocol=https&ip_version=4
 sed -i '0,/#Server/s//Server/; 0,/#Server/s//Server/; 0,/#Server/s//Server/' /etc/pacman.d/mirrorlist
 
 # updating packages
-printf "[AFI-chroot]: starting update\n"
+printf \"[AFI-chroot]: starting update\\n\"
 pacman --noconfirm -Syu archlinux-keyring
 
-printf "[AFI-chroot]: Exitting the chroot environment\n"
-#"
+# cleaning pacman cache
+printf \"[AFI-chroot]: cleaning pacman cache\\n\"
+{ printf y && printf y } | pacman -Scc
+
+printf \"[AFI-chroot]: Exitting the chroot environment\\n\"
+" > /mnt/init_deleteme
+        sudo chmod +x /mnt/init_deleteme
+
+        # run init script in chroot
+        AFI_DEBUG "Entering the chroot environment"
+        sudo arch-chroot /mnt /bin/bash /init_deleteme
+
         # create S3 autostart script hook
         if [ "$AFI_CONF_INITR3" != false ]; then 
             # copying installator files
@@ -281,8 +304,15 @@ printf "[AFI-chroot]: Exitting the chroot environment\n"
             sudo mkdir -p /mnt/root/archfox-install
             sudo cp -r * /mnt/root/archfox-install
 
-
         fi
+
+        AFI_DEBUG "Cleaning..."
+        # delete init script
+        sudo rm -f /mnt/init_deleteme
+
+        # delete swap
+        sudo swapoff /mnt/swap_deleteme
+        sudo rm -f /mnt/swap_deleteme
 
         # umount disk
         AFI_DEBUG "Umounting partitions from /mnt"
@@ -780,7 +810,7 @@ AFI_VALIDATE () {
 
 
     AFI_INFO "validation: succesfull."
-    UNSET AFI_TEMP_ERROR
+    unset AFI_TEMP_ERROR
     AFI_VAR_VALIDATED=true
 }
 
@@ -949,6 +979,7 @@ exit 0
 # 0 - no error
 # 1 - unknown or undescribed error
 # 2 - process aborted by user
+# 3 - dev break point (just find the "exit 3" command and delete it)
 # 5 - sources validation failed
 # 6 - profile not found
 # 10 - no sudo permission

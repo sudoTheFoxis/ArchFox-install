@@ -1,3 +1,6 @@
+1.0.5-A 2024-06-23:
+  = fixed some bugs in S0/S1
+  = almost complete rewrite of S2
 1.0.4-A 2024-06-22:
   + added functionality to AFI_MAIN
   = some small changes and improvements

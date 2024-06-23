@@ -1,8 +1,8 @@
 ▰ make todo list
 ▰ move to github
 ▰ modular profile handler
+▰ check if anything works XD
 ▱ make AFI_MAIN that works
-▱ check if anything works XD
 ▱ make update functionality
 ▱ S0 easy CLI config
 ▱ S1 easy CLI config
