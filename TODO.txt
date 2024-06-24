@@ -2,10 +2,10 @@
 ▰ move to github
 ▰ modular profile handler
 ▰ check if anything works XD
-▱ make AFI_MAIN that works
-▱ make update functionality
 ▱ S0 easy CLI config
 ▱ S1 easy CLI config
 ▱ S2 easy CLI config
+▱ make AFI_MAIN that works
+▱ make update functionality
 ▱ checksum validaton
 ▱ make some optimizations

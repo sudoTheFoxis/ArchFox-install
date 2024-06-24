@@ -1,8 +1,0 @@
-[Unit]
-Description=runs /etc/autostart.sh on system boot
-
-[Service]
-ExecStart=sh -c /etc/autostart.sh
-
-[Install]
-WantedBy=multi-user.target

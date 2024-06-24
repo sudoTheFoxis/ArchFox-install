@@ -1,3 +1,5 @@
+1.0.6-A 2024-06-24:
+  = even more bugs fixed
 1.0.5-A 2024-06-23:
   = fixed some bugs in S0/S1
   = almost complete rewrite of S2
