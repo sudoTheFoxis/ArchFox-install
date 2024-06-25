@@ -5,7 +5,8 @@
 ▱ S0 easy CLI config
 ▱ S1 easy CLI config
 ▱ S2 easy CLI config
+▱ make S3 that works
 ▱ make AFI_MAIN that works
 ▱ make update functionality
-▱ checksum validaton
+▱ make validation that works
 ▱ make some optimizations

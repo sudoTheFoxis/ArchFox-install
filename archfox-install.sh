@@ -1,5 +1,5 @@
 #!/bin/bash
-AFI_VERSION="1.0.6-A"
+AFI_VERSION="1.0.7-A"
 AFI_AUTHOR=( sudoTheFoxis )
 
 
@@ -9,22 +9,19 @@ AFI_AUTHOR=( sudoTheFoxis )
 ### =================================================================================================================================================
 
 ## display settings
-AFI_CONF_IGNORE=false           #   dont display warn messages.
-AFI_CONF_VERBOSE=false          #   display debug info.
-AFI_CONF_COLORS=true            #   display colors in terminal? (may fix some visual bugs and/or slightly improve performance)
-AFI_CONF_RAINBOW=true           #   display rainbow in dev test mode
+AFI_CONF_IGNORE=false               #   dont display warn messages.
+AFI_CONF_VERBOSE=false              #   display debug info.
+AFI_CONF_COLORS=true                #   display colors in terminal? (may fix some visual bugs and/or slightly improve performance)
+AFI_CONF_RAINBOW=true               #   display rainbow in dev test mode
 
 ## AFI main config
-AFI_CONF_FILE="AFI_CONFIG.conf" #   config file name, from with configuration will be imported. (overrides everything)
-AFI_CONF_PFDIR="profiles"       #   directory of profiles folder
-AFI_CONF_RFSDIR="rootfs"        #   directory of rootfs folder
+AFI_CONF_FILE="AFI_CONFIG.conf"     #   config file name, from with configuration will be imported. (overrides everything)
 
 ## installator configuration
-AFI_CONF_DEMO=false             #   run in demo mode.
-AFI_CONF_MODE=main              #   installator mode.
-AFI_CONF_DEFAULT=false          #   don't ask for configuration, use the default values.
-AFI_CONF_AUTO=false             #   don't ask for anything, choose the default option, full auto installation. (except configuration)
-AFI_CONF_INITS3=true            #   if set to false, the main mode installer will stop at the S2 stage and will not automatically start the S3 configuration
+AFI_CONF_DEMO=false                 #   run in demo mode.
+AFI_CONF_MODE=main                  #   installator mode.
+AFI_CONF_DEFAULT=false              #   don't ask for configuration, use the default values.
+AFI_CONF_AUTO=false                 #   don't ask for anything, choose the default option, full auto installation. (except configuration)
 
 ## ==================== S0
 AFI_CONF_S0_PKGS=(
@@ -39,16 +36,19 @@ AFI_CONF_S0_PKGS=(
 )
 
 ## ==================== S1
-AFI_CONF_S1_DEV="/dev/sdz"      #   disk that will be used
-AFI_CONF_S1_HARDFORMAT=false    #   make hard format (dd if=/dev/zero of=/dev/...)
-#AFI_CONF_S1_PARTTABBLE=()
+AFI_CONF_DEV="/dev/sdx"             #   disk that will be used
+AFI_CONF_HARDFORMAT=false           #   make hard format (dd if=/dev/zero of=/dev/sdx)
 
 ## ==================== S2
-AFI_CONF_S2_HOSTNAME="archfox"  #   system/computer name
-AFI_CONF_S2_USERNAME="home"     #   user name
-AFI_CONF_S2_USERPASS="home"     #   user password
-AFI_CONF_S2_ROOTPASS="root"     #   root password
-AFI_CONF_S2_PKGS=(              #   packages that will be installed on the S2 stage
+AFI_CONF_HOSTNAME="archfox"         #   system/computer name
+AFI_CONF_USERNAME="home"            #   user name
+AFI_CONF_USERPASS="home"            #   user password
+AFI_CONF_ROOTPASS="root"            #   root password
+AFI_CONF_LOCALE="en_US.UTF-8"       #   UTF-8 keyboard layout
+AFI_CONF_TIMEZONE="Europe/Warsaw"   #   timezone (from /usr/share/zoneinfo/)
+AFI_CONF_MOUNTPATH="/mnt"           #   path where disk will be mounted
+AFI_CONF_AUTOUMOUNT=false           #   automatically unmount partitions from mount path after installation is complete
+AFI_CONF_S2_PKGS=(                  #   packages that will be installed on the S2 stage
     linux
     base
     mkinitcpio
@@ -59,17 +59,12 @@ AFI_CONF_S2_PKGS=(              #   packages that will be installed on the S2 st
     sudo
     curl
 )
-AFI_CONF_S2_MOUNTPOINT="/mnt"   #   patch where disk will be mounted
-AFI_CONF_S2_AUTOUMOUNT=false    #   automatically unmount partitions after installation is complete
-AFI_CONF_S2_LOCALE="en_US.UTF-8"    #   UTF-8 keyboard layout
-AFI_CONF_S2_TIMEZONE="Europe/Warsaw"    #   timezone (/usr/share/zoneinfo/)
 
 ## ==================== S3
-AFI_CONF_S3_PROFILE="dev"       #   profile that will be installed
-AFI_CONF_S3_GPUDRI="none"       #   for what gpu drivers will be installed
-AFI_CONF_S3_USEYAY=true         #   set to true if you want to install aur packages, it will install and use yay pkgmgr
-AFI_CONF_S3_APPLYCF=2            #   0 - do not apply config files to anyone; 1 - apply config files only to the user that run this script; 2 - apply config files to all users in /home
-AFI_CONF_S3_PKGS=(              #   packages that will be installed on the S3 stage
+AFI_CONF_PROFILE="dev"              #   profile that will be installed
+AFI_CONF_GPUDRI="none"              #   for what gpu drivers will be installed
+AFI_CONF_USEYAY=true                #   set to true if you want to install aur packages, it will install and use yay pkg manager
+AFI_CONF_S3_PKGS=(                  #   packages that will be installed on the S3 stage
     # xorg
     xorg-xinit
     xorg-xinput
@@ -98,11 +93,9 @@ AFI_CONF_S3_PKGS=(              #   packages that will be installed on the S3 st
 )
 
 ## some variables (This is not part of the config)
-AFI_VAR_VALIDATED=false         #   set to true if you want to skip validation
-AFI_VAR_RFSDIR="rootfs"
-AFI_VAR_PFDIR="profiles"
-AFI_VAR_PWD=$PWD                #   path where script runs
-AFI_VAR_CMD=$0                  #   script file name
+AFI_VAR_VALIDATED=false             #   set to true if you want to skip validation
+AFI_VAR_PWD=$PWD                    #   path where script runs
+AFI_VAR_CMD=$0                      #   script file name
 
 
 
@@ -113,8 +106,9 @@ AFI_VAR_CMD=$0                  #   script file name
 ## ==================== MAIN =============================================
 AFI_MAIN () {
     AFI_DEBUG "triggering AFI_MAIN"  
-    # validate
-    AFI_VALIDATE
+
+    AFI_INFO "This function is currently under development."
+    exit 3;
 
     # import config from file
     cd $AFI_VAR_PWD
@@ -149,17 +143,8 @@ AFI_MAIN () {
         # S1 stage
         AFI_S1
         # S2 stage
-        AFI_CONF_S2_AUTOUMOUNT=false
+        AFI_CONF_AUTOUMOUNT=false
         AFI_S2
-        # S3 stage
-        if [ "$AFI_CONF_INITS3" == true ]; then
-            # if config file does not exists save all S3 settings to /mnt/conf_deleteme
-            
-            # create autostart hook
-            #printf "/bin/bash /root/archfox-install/archfox-install.sh -Vm S3" >> "${AFI_CONF_S2_MOUNTPOINT}/etc/autostart.sh"
-
-            #reboot
-        fi
     else
         AFI_DEBUG "MAIN: Running in demo mode, skipping..."
     fi
@@ -196,37 +181,33 @@ AFI_S1 () {
             AFI_ERROR "S1: Root privileges are required to run this function."
             exit 10
         fi
-            # umount disk
-            AFI_DEBUG "Umounting partitions from ${AFI_CONF_S2_MOUNTPOINT}"
-            sudo umount ${AFI_CONF_S2_MOUNTPOINT}/boot # umount BOOT from /mnt/boot
-            sudo umount ${AFI_CONF_S2_MOUNTPOINT} # umount ROOT from /mnt
+
         # check if disk exists
-        if [[ ! -b "$AFI_CONF_S1_DEV" ]]; then
+        if [[ ! -b "$AFI_CONF_DEV" ]]; then
             AFI_ERROR "chosen disk does not exists"; exit 7;
         fi
 
         # format disk
         if [ "$AFI_CONF_S1_HARDFORMAT" == true ]; then
-            AFI_DEBUG "Starting Hard Format on $AFI_CONF_S1_DEV, this may take a while on large disks"
-            sudo dd if=/dev/zero of=$AFI_CONF_S1_DEV bs=16K status=progress
+            AFI_DEBUG "Starting Hard Format on $AFI_CONF_DEV, this may take a while on large disks"
+            sudo dd if=/dev/zero of=$AFI_CONF_DEV bs=16K status=progress
         else
-            AFI_DEBUG "Wiping all partition tables on $AFI_CONF_S1_DEV"
-            sudo wipefs -a $AFI_CONF_S1_DEV
+            AFI_DEBUG "Wiping all partition tables on $AFI_CONF_DEV"
+            sudo wipefs -a $AFI_CONF_DEV
         fi
 
         # create partitons
-        AFI_DEBUG "Creating partitons on $AFI_CONF_S1_DEV"
-        sudo parted -s -f -- $AFI_CONF_S1_DEV \
+        AFI_DEBUG "Creating partitons on $AFI_CONF_DEV"
+        sudo parted -s -f -- $AFI_CONF_DEV \
             mklabel gpt \
             mkpart primary 1MiB 257MiB \
             name 1 BOOT \
             set 1 boot on \
-            set 1 efi on \
             mkpart primary 258MiB -1MiB \
             name 2 ROOT
         
-        sudo mkfs.fat -F 32 "${AFI_CONF_S1_DEV}1" # create boot fs
-        sudo mkfs.ext4 "${AFI_CONF_S1_DEV}2" # craete root fs
+        sudo mkfs.fat -F 32 "${AFI_CONF_DEV}1" # create boot fs
+        sudo mkfs.ext4 "${AFI_CONF_DEV}2" # craete root fs
 
         # print partition tabble
         lsblk -f
@@ -246,59 +227,55 @@ AFI_S2 () {
             AFI_ERROR "S2: Root privileges are required to run this function."
             exit 10
         fi
-        # validation
-        AFI_VALIDATE
 
         # mount prepared disk
-        AFI_DEBUG "Mounting partitions in ${AFI_CONF_S2_MOUNTPOINT}"
-        sudo mount -m "${AFI_CONF_S1_DEV}2" ${AFI_CONF_S2_MOUNTPOINT} # mount ROOT on /mnt
-        sudo mount -m "${AFI_CONF_S1_DEV}1" ${AFI_CONF_S2_MOUNTPOINT}/boot # mount BOOT on /mnt/boot
+        AFI_DEBUG "Mounting partitions in ${AFI_CONF_MOUNTPOINT}"
+        sudo mount -m "${AFI_CONF_DEV}2" ${AFI_CONF_MOUNTPOINT} # mount ROOT on /mnt
+        sudo mount -m "${AFI_CONF_DEV}1" ${AFI_CONF_MOUNTPOINT}/boot # mount BOOT on /mnt/boot
 
         # create swap file
-        AFI_DEBUG "Creating swap in ${AFI_CONF_S2_MOUNTPOINT}/swap_deleteme"
-        sudo mkswap -U clear --size 4G --file ${AFI_CONF_S2_MOUNTPOINT}/swap_deleteme
-        sudo swapon ${AFI_CONF_S2_MOUNTPOINT}/swap_deleteme
+        AFI_DEBUG "Creating swap in ${AFI_CONF_MOUNTPOINT}/swap_deleteme"
+        sudo mkswap -U clear --size 4G --file ${AFI_CONF_MOUNTPOINT}/swap_deleteme
+        sudo swapon ${AFI_CONF_MOUNTPOINT}/swap_deleteme
 
         # install linux
         AFI_DEBUG "Cleaning pacman cache"
         sudo pacman --noconfirm -Sc
         AFI_DEBUG "Updating pacman database"
         sudo pacman --noconfirm -Syy
-        AFI_DEBUG "Installing linux in ${AFI_CONF_S2_MOUNTPOINT}"
-        sudo pacstrap ${AFI_CONF_S2_MOUNTPOINT} ${AFI_CONF_S2_PKGS[*]}
+        AFI_DEBUG "Installing linux in ${AFI_CONF_MOUNTPOINT}"
+        sudo pacstrap ${AFI_CONF_MOUNTPOINT} ${AFI_CONF_S2_PKGS[*]}
 
         # create fstab
-        genfstab -U ${AFI_CONF_S2_MOUNTPOINT} >> ${AFI_CONF_S2_MOUNTPOINT}/etc/fstab
+        sudo genfstab -U ${AFI_CONF_MOUNTPOINT} >> ${AFI_CONF_MOUNTPOINT}/etc/fstab
 
         # configuration required for basic functionality
-        AFI_DEBUG "Creating init script ${AFI_CONF_S2_MOUNTPOINT}/init_deleteme"
+        AFI_DEBUG "Creating init script ${AFI_CONF_MOUNTPOINT}/init_deleteme"
         sudo printf "#!/bin/bash
 ## this is the init script from archfox-install, remove it if it somehow wasn't automatically removed after installation
 
 # change host name
 printf \"[AFI][chroot]: changing host name\\n\"
-printf \"$AFI_CONF_S2_HOSTNAME\" > /etc/hostname
+printf \"$AFI_CONF_HOSTNAME\" > /etc/hostname
 
 # configure hosts 
 printf \"[AFI][chroot]: configuring hosts\\n\"
-printf \"\\n127.0.0.1	localhost\\n::1		localhost\\n127.0.1.1	$AFI_CONF_S2_HOSTNAME.localdomain	$AFI_CONF_S2_HOSTNAME\" > /etc/hosts
+printf \"\\n127.0.0.1	localhost\\n::1		localhost\\n127.0.1.1	$AFI_CONF_HOSTNAME.localdomain	$AFI_CONF_HOSTNAME\" > /etc/hosts
 
 # set locals
 printf \"[AFI][chroot]: configuring and generating locales\\n\"
-printf \"\\n## archfox\\n${AFI_CONF_S2_LOCALE} UTF-8\" >> /etc/locale.gen
-printf \"LANG=${AFI_CONF_S2_LOCALE}\\nLC_ALL=${AFI_CONF_S2_LOCALE}\\n\" > /etc/locale.conf
-locale-gen
+printf \"\\n## archfox\\n${AFI_CONF_LOCALE} UTF-8\" >> /etc/locale.gen
+printf \"LANG=${AFI_CONF_LOCALE}\\nLC_ALL=${AFI_CONF_LOCALE}\\n\" > /etc/locale.conf
 
 # set time
-ln -sf /usr/share/zoneinfo/${AFI_CONF_S2_TIMEZONE} /etc/localtime
-hwclock --systohc
+ln -sf /usr/share/zoneinfo/${AFI_CONF_TIMEZONE} /etc/localtime
 
 # create user and change password for user/root
 printf \"[AFI][chroot]: creating user, changing user/root passwords\n\"
-useradd -m $AFI_CONF_S2_USERNAME
-usermod -p \$( printf \"$AFI_CONF_S2_USERPASS\" | openssl passwd -1 -stdin ) $AFI_CONF_S2_USERNAME
-usermod -p \$( printf \"$AFI_CONF_S2_ROOTPASS\" | openssl passwd -1 -stdin ) root
-sed -i \"106i ${AFI_CONF_S2_USERNAME} ALL=\(ALL:ALL\) ALL\" /etc/sudoers # give user the sudo rights
+useradd -m $AFI_CONF_USERNAME
+usermod -p \$( printf \"$AFI_CONF_USERPASS\" | openssl passwd -1 -stdin ) $AFI_CONF_USERNAME
+usermod -p \$( printf \"$AFI_CONF_ROOTPASS\" | openssl passwd -1 -stdin ) root
+sed -i \"106i ${AFI_CONF_USERNAME} ALL=\(ALL:ALL\) ALL\" /etc/sudoers # give user the sudo rights
 
 # create autostart.service
 printf \"[AFI][chroot]: creating autostart service\\n\"
@@ -308,8 +285,8 @@ printf \"#!/bin/sh\\n\" > /etc/autostart.sh
 # configuring bootloader
 printf \"[AFI][chroot]: configuring bootloader\\n\"
 bootctl --path=/boot install
-printf \"timeout	3\\ndefault	$AFI_CONF_S2_HOSTNAME.conf\\n\" > /boot/loader/loader.conf
-printf \"title	$AFI_CONF_S2_HOSTNAME\\nlinux	/vmlinuz-linux\\ninitrd	/initramfs-linux.img\\noptions	root=/dev/sda2	rw\\n\" > /boot/loader/entries/$AFI_CONF_S2_HOSTNAME.conf
+printf \"timeout	3\\ndefault	$AFI_CONF_HOSTNAME.conf\\n\" > /boot/loader/loader.conf
+printf \"title	$AFI_CONF_HOSTNAME\\nlinux	/vmlinuz-linux\\ninitrd	/initramfs-linux.img\\noptions	root=/dev/sda2	rw\\n\" > /boot/loader/entries/$AFI_CONF_HOSTNAME.conf
 
 # configure pacman and update mirrorlist
 printf \"[AFI][chroot]: configuring pacman\\n\"
@@ -337,37 +314,30 @@ printf \"[AFI][chroot]: enabling services\\n\"
 systemctl enable NetworkManager.service
 systemctl enable autostart.service
 
+hwclock --systohc
+locale-gen
+
 printf \"[AFI][chroot]: Exitting the chroot environment\\n\"
- " > ${AFI_CONF_S2_MOUNTPOINT}/init_deleteme
-        sudo chmod +x ${AFI_CONF_S2_MOUNTPOINT}/init_deleteme
+ " > ${AFI_CONF_MOUNTPOINT}/init_deleteme
+        sudo chmod +x ${AFI_CONF_MOUNTPOINT}/init_deleteme
 
         # run init script in chroot
         AFI_DEBUG "Entering the chroot environment"
-        sudo arch-chroot ${AFI_CONF_S2_MOUNTPOINT} /bin/bash /init_deleteme
-
-        # create S3 autostart script hook
-        if [ "$AFI_CONF_INITR3" != false ]; then 
-            # copying installator files
-            AFI_DEBUG "copying installator files to /root"
-            cd $AFI_VAR_PWD
-            sudo mkdir -p ${AFI_CONF_S2_MOUNTPOINT}/root/archfox-install
-            sudo cp -r * ${AFI_CONF_S2_MOUNTPOINT}/root/archfox-install
-
-        fi
+        sudo arch-chroot ${AFI_CONF_MOUNTPOINT} /bin/bash /init_deleteme
 
         AFI_DEBUG "Cleaning..."
         # delete init script
-        sudo rm -f ${AFI_CONF_S2_MOUNTPOINT}/init_deleteme
+        sudo rm -f ${AFI_CONF_MOUNTPOINT}/init_deleteme
 
         # delete swap
-        sudo swapoff ${AFI_CONF_S2_MOUNTPOINT}/swap_deleteme
-        sudo rm -f ${AFI_CONF_S2_MOUNTPOINT}/swap_deleteme
+        sudo swapoff ${AFI_CONF_MOUNTPOINT}/swap_deleteme
+        sudo rm -f ${AFI_CONF_MOUNTPOINT}/swap_deleteme
 
         # umount disk
-        if [ "$AFI_CONF_S2_AUTOUMOUNT" == true ]; then
-            AFI_DEBUG "Umounting partitions from ${AFI_CONF_S2_MOUNTPOINT}"
-            sudo umount ${AFI_CONF_S2_MOUNTPOINT}/boot # umount BOOT from /mnt/boot
-            sudo umount ${AFI_CONF_S2_MOUNTPOINT} # umount ROOT from /mnt
+        if [ "$AFI_CONF_AUTOUMOUNT" == true ]; then
+            AFI_DEBUG "Umounting partitions from ${AFI_CONF_MOUNTPOINT}"
+            sudo umount ${AFI_CONF_MOUNTPOINT}/boot # umount BOOT from /mnt/boot
+            sudo umount ${AFI_CONF_MOUNTPOINT} # umount ROOT from /mnt
         fi
 
     else
@@ -385,150 +355,7 @@ AFI_S3 () {
             AFI_ERROR "S3: Root privileges are required to run this function."
             exit 10
         fi
-        # validation
-        AFI_VALIDATE
-
-        # check if chosen profile exists
-        cd $AFI_VAR_PWD
-        if [ ! -d "$AFI_VAR_PFDIR/$AFI_CONF_S3_PROFILE" ]; then
-            AFI_ERROR "The selected profile does not exist: ./$AFI_VAR_PFDIR/$AFI_CONF_S3_PROFILE"
-            exit 1;
-        else
-            if [ ! -f "$AFI_VAR_PFDIR/$AFI_CONF_S3_PROFILE" ]; then
-                AFI_ERROR "The selected profile does not have a init.sh file: ./$AFI_VAR_PFDIR/$AFI_CONF_S3_PROFILE"
-                exit 1;
-            fi
-        fi
-
-        # apply configuration files
-        if [ ! -f /etc/archfox-release ]; then
-            # make backup of some files
-            AFI_DEBUG "Making backups of some files"
-            if [ -d "/etc/skel" ]; then sudo mv /etc/skel /etc/skel.bak; fi
-            if [ -f "/etc/enviroment" ]; then sudo mv /etc/enviroment /etc/enviroment.bak; fi
-            if [ -f "/etc/bash.bashrc" ]; then sudo mv /etc/bash.bashrc /etc/bash.bashrc.bak; fi
-
-            # apply basic config files
-            AFI_DEBUG "Applying config files/themes to the system from: ${AFI_VAR_PWD}/${AFI_VAR_RFSDIR}"
-            cd $AFI_VAR_PWD
-            cd $AFI_VAR_RFSDIR
-            sudo cp -vfr ./etc/* /etc
-            sudo cp -vfr ./usr/* /usr
-
-            # applying conf files to user
-            case "$AFI_CONF_S3_APPLYCF"; in
-                0)
-                    AFI_WARN "Configuration files have not been applied to anyone.\nYou must manually copy the files from the \etc\skel folder to the user's home directory to apply the user-specific configuration."
-                    ;;
-                1)
-                    if [ "$(whoami)" == "root" ]; then 
-                        AFI_WARN "The script was run by root, the configuration files could not be applied.\nYou must manually copy the files from the \etc\skel folder to the user's home directory to apply the user-specific configuration."
-                    else
-                        AFI_TEMP_USERDIR=$(/bin/sh -c "echo ~$(whoami)")
-                        if [ "$AFI_TEMP_USERDIR" != /home/* ]; then 
-                            AFI_WARN "Unable to find home directory, the configuration files could not be applied.\nYou must manually copy the files from the \etc\skel folder to the user's home directory to apply the user-specific configuration."
-                        else
-                            AFI_DEBUG "Applying config files for user $(whoami)"
-                            cd $AFI_TEMP_USERDIR
-                            if [ -f ".config/neofetch/config.conf" ]; then mv -vf .config/neofetch/config.conf .config/neofetch/config.conf.bak; fi
-                            if [ -f ".config/.gtkrc-2.0" ]; then mv -vf .config/.gtkrc-2.0 .config/.gtkrc-2.0.bak; fi
-                            if [ -f ".gtkrc-2.0" ]; then mv -vf .gtkrc-2.0 .gtkrc-2.0.bak; fi
-                            if [ -f ".zshrc" ]; then mv -vf .zshrc .zshrc.bak; fi
-                            sudo cp -vfr /etc/skel/* .
-                        fi
-                    fi
-                    ;;
-                2)
-                    AFI_DEBUG "Applying config files for all users in /home"
-                    cd /home
-                    for user in *; do
-                        AFI_DEBUG "Applying config files for $user"
-                        cd /home/$user
-                        if [ -f ".config/neofetch/config.conf" ]; then sudo mv -vf .config/neofetch/config.conf .config/neofetch/config.conf.bak; fi
-                        if [ -f ".config/.gtkrc-2.0" ]; then sudo mv -vf .config/.gtkrc-2.0 .config/.gtkrc-2.0.bak; fi
-                        if [ -f ".gtkrc-2.0" ]; then sudo mv -vf .gtkrc-2.0 .gtkrc-2.0.bak; fi
-                        if [ -f ".zshrc" ]; then sudo mv -vf .zshrc .zshrc.bak; fi
-                        sudo cp -vfr /etc/skel/* .
-                    done
-                    ;;
-            esac
-            sudo echo "AF_VERSION=$AFI_VERSION" > /etc/archfox-release
-        else
-            AFI_WARN "Existing ArchFox installation detected, skipping.\nremove /etc/archfox.ver if you still want to continue"
-        fi
-
-        # install graphics drivers
-        AFI_DEBUG "Installing selected GPU drivers"
-        case "${AFI_CONF_S3_GPUDRI}" in
-            "none" )
-                AFI_INFO "The selected GPU driver for install is none, skipping.";;
-            "intel" )
-                sudo pacman --noconfirm -Syu mesa xf86-video-intel ;;
-            "nvidia" )
-                sudo pacman --noconfirm -Syu nvidia nvidia-utils ;;
-            "nvidia-open" )
-                sudo pacman --noconfirm -Syu nvidia-open nvidia-utils ;;
-            "amd" )
-                sudo pacman --noconfirm -Syu mesa xf86-video-amdgpu ;;
-            "vmware" )
-                sudo pacman --noconfirm -Syu mesa xf86-input-vmmouse xf86-video-vmware ;;
-            * )
-                AFI_ERROR "This installation script does not support the installation of this GPU driver: $AFI_CONF_S3_GPUDRI." ;;
-        esac
-
-        # install packages
-        if [ "$AFI_CONF_S3_USEYAY" == true ]; then
-            if [[ "$(yay --version)" != yay* ]]; then
-                AFI_DEBUG "Installing yay"
-                cd $AFI_VAR_PWD
-                mkdir temp && cd temp
-                git clone https://aur.archlinux.org/yay.git && cd yay
-                makepkg -LAsif --noconfirm
-                cd $AFI_VAR_PWD
-            fi
-            AFI_DEBUG "Installing additional packages via yay"
-            yay --noconfirm -Syu ${AFI_CONF_S3_PKGS[*]}
-        else
-            AFI_DEBUG "Installing additional packages via pacman"
-            sudo pacman --noconfirm -Syu ${AFI_CONF_S3_PKGS[*]}
-        fi
-
-        # final check if profile exists, enter profile folder
-        cd $AFI_VAR_PWD && cd $AFI_VAR_PFDIR
-        if [ -d "$AFI_CONF_S3_PROFILE" ]; then cd $AFI_CONF_S3_PROFILE;
-        else AFI_ERROR "selected profile $AFI_CONF_S3_PROFILE, does not exist"; exit 6; fi
-        
-        # check if install script exists and have executable permissions
-        if [[ ! -x "init.sh" ]]; then
-            if [[ ! -f "init.sh" ]]; then
-                AFI_ERROR "File init.sh not found inside $(pwd)"
-            else
-                while true; do
-                    AFI_WARN "The init.sh file is not executable"
-                    read -r AFI_TEMP_INPUT -p "do you want to give execute permission and continue? (y/n): "
-                    case "$AFI_TEMP_INPUT" in
-                        [Yy1Tt]* )
-                            sudo chmod +x init.sh; break ;;
-                        [Nn0]* )
-                            exit 2 ;;
-                        * )
-                            printf "This is not a valid choice: ${AFI_TEMP_INPUT}\n" ;;
-                    esac
-                done
-            fi
-        fi
-
-        # run profile install script
-        AFI_DEBUG "Triggering init.sh file of ${AFI_CONF_S3_PROFILE}/${AFI_CONF_S3_PROFILE}"
-        source init.sh
-        sudo echo "AF_PROFILE=$AFI_VERSION" > /etc/archfox-release
-        if [ "$AFI_INIT_RETURNCODE" != 0 ]; then
-            if [ "$AFI_INIT_RETURNCODE" == 1 ]; then
-                AFI_ERROR "init.sh exited with error."
-            else
-                AFI_WARN "init.sh returned non zero code."
-            fi
-        fi
+        AFI_INFO "This function is currently under development."
 
     else
         AFI_DEBUG "S3: Running in demo mode, skipping..."
@@ -566,35 +393,35 @@ AFI_HELP () {
     unset AFI_TEMP_A
     unset AFI_TEMP_B
 
-    # make profile list
-    cd $AFI_VAR_PFDIR
-    AFI_TEMP_PROFILES=()
-    for folder in *; do
-        if [[ -d "$folder" ]]; then
-            if [[ ! -f "$folder/init.sh" ]]; then
-                AFI_WARN "The $folder profile does not contain a init.sh file"; continue;
-            fi
-            # check files
-            if [[ -f "$folder/description.txt" ]]; then AFI_TEMP_DESFILE=description.txt
-            elif [[ -f "$folder/README.md" ]]; then AFI_TEMP_DESFILE=README.md
-            else AFI_TEMP_DESFILE="null"
-            fi
-            # print description
-            fill=$(printf "%0.s┈" $(seq 1 $(( 135 - ${#folder} - ${#AFI_TEMP_DESFILE} - 8)) ))
-            AFI_TEMP_TEXT="$(printf "    ${folder} ${fill} (${AFI_TEMP_DESFILE})")\n"
-
-            if [ $AFI_TEMP_DESFILE != "null" ]; then
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                    AFI_TEMP_TEXT+="      ┃ $line\n"
-                done < "$folder/$AFI_TEMP_DESFILE"
-                AFI_TEMP_TEXT="$(printf "$AFI_TEMP_TEXT" | sed '$ s/      ┃/      ╹/')\n"
-            #else AFI_TEMP_TEXT+="      ╹ This profile does not contain a description.txt or README.md file\n"
-            fi
-            AFI_TEMP_PROFILES+=$AFI_TEMP_TEXT
-        fi
-    done
-    unset AFI_TEMP_TEXT
-    unset AFI_TEMP_DESFILE
+#    # make profile list
+#    cd $AFI_VAR_PFDIR
+#    AFI_TEMP_PROFILES=()
+#    for folder in *; do
+#        if [[ -d "$folder" ]]; then
+#            if [[ ! -f "$folder/init.sh" ]]; then
+#                AFI_WARN "The $folder profile does not contain a init.sh file"; continue;
+#            fi
+#            # check files
+#            if [[ -f "$folder/description.txt" ]]; then AFI_TEMP_DESFILE=description.txt
+#            elif [[ -f "$folder/README.md" ]]; then AFI_TEMP_DESFILE=README.md
+#            else AFI_TEMP_DESFILE="null"
+#            fi
+#            # print description
+#            fill=$(printf "%0.s┈" $(seq 1 $(( 135 - ${#folder} - ${#AFI_TEMP_DESFILE} - 8)) ))
+#            AFI_TEMP_TEXT="$(printf "    ${folder} ${fill} (${AFI_TEMP_DESFILE})")\n"
+#
+#            if [ $AFI_TEMP_DESFILE != "null" ]; then
+#                while IFS= read -r line || [[ -n "$line" ]]; do
+#                    AFI_TEMP_TEXT+="      ┃ $line\n"
+#                done < "$folder/$AFI_TEMP_DESFILE"
+#                AFI_TEMP_TEXT="$(printf "$AFI_TEMP_TEXT" | sed '$ s/      ┃/      ╹/')\n"
+#            #else AFI_TEMP_TEXT+="      ╹ This profile does not contain a description.txt or README.md file\n"
+#            fi
+#            AFI_TEMP_PROFILES+=$AFI_TEMP_TEXT
+#        fi
+#    done
+#    unset AFI_TEMP_TEXT
+#    unset AFI_TEMP_DESFILE
 
     # print help
     printf "INFO: type \":q\" or press <Esc> to exit.
@@ -676,12 +503,13 @@ SYNTAX
     flag arguments are strings from a given flag to the next flag that do not start with "-" or "--"
     changelog
     <version> <date>:
-      - removed
+      # comment
       + added
-      = changed/modified
+      - removed
+      = changed/modified/fixed
 
 PROFILES
-$AFI_TEMP_PROFILES
+    [in development]
 
 CHANGELOG
 $AFI_TEMP_CHANGELOG
@@ -691,7 +519,6 @@ HELLO THERE
 \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n
 STF; you want linux, dont you?
 " | vim -c 'map <Esc> :q!<CR>' -R -M -m -
-    unset AFI_TEMP_PROFLIST
     unset AFI_TEMP_CHANGELOG
     AFI_DEBUG "AFI_HELP: done."
 }
@@ -859,16 +686,6 @@ AFI_VALIDATE () {
         AFI_DEBUG "validation: file 'archfox-install.sh' exists."
     else 
         AFI_WARN "validation: file 'archfox-install.sh' does not exist,\n make sure you run this script in the same folder as the script."; AFI_TEMP_ERROR=true
-    fi
-    if [ -d "$AFI_VAR_RFSDIR" ]; then # rootfs
-        AFI_DEBUG "validation: rootfs directory ./$AFI_VAR_RFSDIR exists."
-    else 
-        AFI_WARN "validation: rootfs directory ./$AFI_VAR_RFSDIR does not exists."; AFI_TEMP_ERROR=true
-    fi
-    if [ -d "$AFI_VAR_PFDIR" ]; then # profiles
-        AFI_DEBUG "validation: profiles directory ./$AFI_VAR_PFDIR exists."
-    else 
-        AFI_WARN "validation: profiles directory ./$AFI_VAR_PFDIR does not exists."; AFI_TEMP_ERROR=true
     fi
     if [ "$AFI_TEMP_ERROR" == true ]; then AFI_ERROR "validation: failed."; exit 5; fi # Error status check
     

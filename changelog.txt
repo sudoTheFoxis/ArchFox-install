@@ -1,5 +1,10 @@
+1.0.7-A 2024-06-25:
+  - removed S3 as it needs a complete rewrite
+  - removed validation as it is currently useless
+  = some little bug fixes
 1.0.6-A 2024-06-24:
-  = even more bugs fixed
+  + added some new coniguration options
+  = even more bugs fixed, now S0/S1/S2 should work as intended
 1.0.5-A 2024-06-23:
   = fixed some bugs in S0/S1
   = almost complete rewrite of S2
