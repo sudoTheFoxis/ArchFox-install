@@ -1,8 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Name=PulseMixer
-Exec=/usr/bin/pulsemixer
-Icon=xfce4-sound
-Terminal=true
-Type=Application
-StartupWMClass=pulsemixer

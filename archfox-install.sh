@@ -1,5 +1,5 @@
 #!/bin/bash
-AFI_VERSION="1.0.7-A"
+AFI_VERSION="1.0.8-A"
 AFI_AUTHOR=( sudoTheFoxis )
 
 
@@ -16,6 +16,7 @@ AFI_CONF_RAINBOW=true               #   display rainbow in dev test mode
 
 ## AFI main config
 AFI_CONF_FILE="AFI_CONFIG.conf"     #   config file name, from with configuration will be imported. (overrides everything)
+AFI_CONF_TEMP=$(mktemp "/tmp/AFI_CONF_TEMP.XXX") # temp config file that will be deleted on script end
 
 ## installator configuration
 AFI_CONF_DEMO=false                 #   run in demo mode.
@@ -24,7 +25,7 @@ AFI_CONF_DEFAULT=false              #   don't ask for configuration, use the def
 AFI_CONF_AUTO=false                 #   don't ask for anything, choose the default option, full auto installation. (except configuration)
 
 ## ==================== S0
-AFI_CONF_S0_PKGS=(
+AFI_DCONF_S0_PKGS=(
     archlinux-keyring
     arch-install-scripts
     util-linux
@@ -32,23 +33,24 @@ AFI_CONF_S0_PKGS=(
     e2fsprogs
     coreutils
     parted
+    grep
     vim
 )
 
 ## ==================== S1
-AFI_CONF_DEV="/dev/sdx"             #   disk that will be used
-AFI_CONF_HARDFORMAT=false           #   make hard format (dd if=/dev/zero of=/dev/sdx)
+AFI_DCONF_DEV="/dev/sdx"             #   disk that will be used
+AFI_DCONF_HARDFORMAT=false           #   make hard format (dd if=/dev/zero of=/dev/sdx)
 
 ## ==================== S2
-AFI_CONF_HOSTNAME="archfox"         #   system/computer name
-AFI_CONF_USERNAME="home"            #   user name
-AFI_CONF_USERPASS="home"            #   user password
-AFI_CONF_ROOTPASS="root"            #   root password
-AFI_CONF_LOCALE="en_US.UTF-8"       #   UTF-8 keyboard layout
-AFI_CONF_TIMEZONE="Europe/Warsaw"   #   timezone (from /usr/share/zoneinfo/)
-AFI_CONF_MOUNTPATH="/mnt"           #   path where disk will be mounted
-AFI_CONF_AUTOUMOUNT=false           #   automatically unmount partitions from mount path after installation is complete
-AFI_CONF_S2_PKGS=(                  #   packages that will be installed on the S2 stage
+AFI_DCONF_HOSTNAME="archfox"         #   system/computer name
+AFI_DCONF_USERNAME="home"            #   user name
+AFI_DCONF_USERPASS="home"            #   user password
+AFI_DCONF_ROOTPASS="root"            #   root password
+AFI_DCONF_LOCALE="en_US.UTF-8"       #   UTF-8 keyboard layout
+AFI_DCONF_TIMEZONE="Europe/Warsaw"   #   timezone (from /usr/share/zoneinfo/)
+AFI_DCONF_MOUNTPATH="/mnt"           #   path where disk will be mounted
+AFI_DCONF_AUTOUMOUNT=false           #   automatically unmount partitions from mount path after installation is complete
+AFI_DCONF_S2_PKGS=(                  #   packages that will be installed on the S2 stage
     linux
     base
     mkinitcpio
@@ -61,10 +63,10 @@ AFI_CONF_S2_PKGS=(                  #   packages that will be installed on the S
 )
 
 ## ==================== S3
-AFI_CONF_PROFILE="dev"              #   profile that will be installed
-AFI_CONF_GPUDRI="none"              #   for what gpu drivers will be installed
-AFI_CONF_USEYAY=true                #   set to true if you want to install aur packages, it will install and use yay pkg manager
-AFI_CONF_S3_PKGS=(                  #   packages that will be installed on the S3 stage
+AFI_DCONF_SCRIPT="dev"               #   S3 script that will be executed
+AFI_DCONF_GPUDRI="none"              #   for what gpu drivers will be installed
+AFI_DCONF_USEYAY=true                #   set to true if you want to install aur packages, it will install and use yay pkg manager
+AFI_DCONF_S3_PKGS=(                  #   packages that will be installed on the S3 stage
     # xorg
     xorg-xinit
     xorg-xinput
@@ -96,7 +98,6 @@ AFI_CONF_S3_PKGS=(                  #   packages that will be installed on the S
 AFI_VAR_VALIDATED=false             #   set to true if you want to skip validation
 AFI_VAR_PWD=$PWD                    #   path where script runs
 AFI_VAR_CMD=$0                      #   script file name
-
 
 
 ### =================================================================================================================================================
@@ -217,6 +218,38 @@ AFI_S1 () {
     fi
     AFI_DEBUG "AFI_S1: done."
 }
+AFI_CONF_S1 () {
+    # AFI_CONF_DEV
+    clear
+    lsblk -f
+    while true; do
+        printf "Enter the disk path ($AFI_DCONF_DEV): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_DEV; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # check if disk exists
+        AFI_TEMP_INPUT=${AFI_TEMP_INPUT//"/dev/"}; AFI_TEMP_A=$(lsblk -no TYPE "/dev/$AFI_TEMP_INPUT")
+        if printf "$AFI_TEMP_A\n" | grep -q "disk"; then AFI_DEBUG "/dev/$AFI_TEMP_INPUT is a disk\n"
+        elif printf "$AFI_TEMP_A\n" | grep -q "part"; then AFI_WARN "/dev/$AFI_TEMP_INPUT is a partition\n"  
+        else AFI_ERROR "/dev/$AFI_TEMP_INPUT is not a block device\n"; continue; fi
+        # check if disk size >= 6 GB
+        AFI_TEMP_B=$(( $(cat /sys/class/block/$AFI_TEMP_INPUT/size) * 512 / 1024 / 1024 / 1024 ))
+        if (( ${AFI_TEMP_B%%.*} >= 6 )); then AFI_DEBUG "Disk /dev/$AFI_TEMP_INPUT is bigger than 6 GB ($AFI_TEMP_B GB)\n"
+        else AFI_WARN "Disk /dev/$AFI_TEMP_INPUT is smaller than recomended size: 6 GB ($AFI_TEMP_B GB)\n"; fi
+        # save 
+        AFI_CONF_DEV=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    # AFI_CONF_HARDFORMAT
+    AFI_INFO "Do you wish to make hard format? ( dd if=/dev/zero of=/dev/sdx )\n"
+    while true; do
+        printf "Prepare hard format ($AFI_DCONF_HARDFORMAT): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HARDFORMAT; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_HARDFORMAT=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+}
 
 ## ==================== S2 ===============================================
 # install working system with basic functionality (bare bones arch linux)
@@ -234,9 +267,9 @@ AFI_S2 () {
         sudo mount -m "${AFI_CONF_DEV}1" ${AFI_CONF_MOUNTPOINT}/boot # mount BOOT on /mnt/boot
 
         # create swap file
-        AFI_DEBUG "Creating swap in ${AFI_CONF_MOUNTPOINT}/swap_deleteme"
-        sudo mkswap -U clear --size 4G --file ${AFI_CONF_MOUNTPOINT}/swap_deleteme
-        sudo swapon ${AFI_CONF_MOUNTPOINT}/swap_deleteme
+        AFI_DEBUG "Creating swap in ${AFI_CONF_MOUNTPOINT}/afi_swap_deleteme"
+        sudo mkswap -U clear --size 4G --file ${AFI_CONF_MOUNTPOINT}/afi_swap_deleteme
+        sudo swapon ${AFI_CONF_MOUNTPOINT}/afi_swap_deleteme
 
         # install linux
         AFI_DEBUG "Cleaning pacman cache"
@@ -250,7 +283,7 @@ AFI_S2 () {
         sudo genfstab -U ${AFI_CONF_MOUNTPOINT} >> ${AFI_CONF_MOUNTPOINT}/etc/fstab
 
         # configuration required for basic functionality
-        AFI_DEBUG "Creating init script ${AFI_CONF_MOUNTPOINT}/init_deleteme"
+        AFI_DEBUG "Creating init script ${AFI_CONF_MOUNTPOINT}/afi_init_deleteme"
         sudo printf "#!/bin/bash
 ## this is the init script from archfox-install, remove it if it somehow wasn't automatically removed after installation
 
@@ -318,20 +351,20 @@ hwclock --systohc
 locale-gen
 
 printf \"[AFI][chroot]: Exitting the chroot environment\\n\"
- " > ${AFI_CONF_MOUNTPOINT}/init_deleteme
-        sudo chmod +x ${AFI_CONF_MOUNTPOINT}/init_deleteme
+ " > ${AFI_CONF_MOUNTPOINT}/afi_init_deleteme
+        sudo chmod +x ${AFI_CONF_MOUNTPOINT}/afi_init_deleteme
 
         # run init script in chroot
         AFI_DEBUG "Entering the chroot environment"
-        sudo arch-chroot ${AFI_CONF_MOUNTPOINT} /bin/bash /init_deleteme
+        sudo arch-chroot ${AFI_CONF_MOUNTPOINT} /bin/bash /afi_init_deleteme
 
         AFI_DEBUG "Cleaning..."
         # delete init script
-        sudo rm -f ${AFI_CONF_MOUNTPOINT}/init_deleteme
+        sudo rm -f ${AFI_CONF_MOUNTPOINT}/afi_init_deleteme
 
         # delete swap
-        sudo swapoff ${AFI_CONF_MOUNTPOINT}/swap_deleteme
-        sudo rm -f ${AFI_CONF_MOUNTPOINT}/swap_deleteme
+        sudo swapoff ${AFI_CONF_MOUNTPOINT}/afi_swap_deleteme
+        sudo rm -f ${AFI_CONF_MOUNTPOINT}/afi_swap_deleteme
 
         # umount disk
         if [ "$AFI_CONF_AUTOUMOUNT" == true ]; then
@@ -345,9 +378,94 @@ printf \"[AFI][chroot]: Exitting the chroot environment\\n\"
     fi
     AFI_DEBUG "AFI_S2: done."
 }
+AFI_CONF_S2 () {
+    clear
+    #AFI_CONF_HOSTNAME="archfox"
+    while true; do
+        printf "Choose a hostname ($AFI_DCONF_HOSTNAME): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HOSTNAME; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_HOSTNAME=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_USERNAME="home"
+    while true; do
+        printf "Choose a username ($AFI_DCONF_USERNAME): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERNAME; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_USERNAME=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_USERPASS="home"
+    while true; do
+        printf "Choose a user password ($AFI_DCONF_USERPASS): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERPASS; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_USERPASS=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_ROOTPASS="root"
+    while true; do
+        printf "Choose a root password ($AFI_DCONF_ROOTPASS): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_ROOTPASS; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_LOCALE="en_US.UTF-8"
+    while true; do
+        printf "Choose a locale ($AFI_DCONF_LOCALE): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_LOCALE; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_LOCALE=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_TIMEZONE="Europe/Warsaw"
+    while true; do
+        printf "Set time zone ($AFI_DCONF_TIMEZONE): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_TIMEZONE; fi
+        if [[ "$AFI_CONF_TIMEZONE" == "exit" ]]; then exit 2; fi
+        # save 
+        AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_MOUNTPATH="/mnt"
+    while true; do
+        printf "Provide mount point where disk will be mounted ($AFI_DCONF_MOUNTPATH): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_MOUNTPATH; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # check
+        if [ ! -d "$AFI_TEMP_INPUT" ]; then AFI_ERROR "Provided mount point does not exists: $AFI_TEMP_INPUT"; continue; fi
+        # save 
+        AFI_CONF_MOUNTPATH=$AFI_TEMP_INPUT
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_CONF_AUTOUMOUNT=false
+    while true; do
+        printf "Do you wish to auto umount disk after install ($AFI_DCONF_AUTOUMOUNT): "; read -r AFI_TEMP_INPUT
+        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_AUTOUMOUNT; fi
+        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+        # save 
+        case "$AFI_TEMP_INPUT" in 
+            [YyTt1] )
+                AFI_CONF_AUTOUMOUNT=true ;;
+            [NnFf0] )
+                AFI_CONF_AUTOUMOUNT=false ;;
+            *)
+                AFI_ERROR "unsupported input: $AFI_TEMP_INPUT, chose true or false"; continue
+        esac
+        unset AFI_TEMP_INPUT; break
+    done
+    #AFI_DCONF_S2_PKGS
+}
 
 ## ==================== S3 ===============================================
-# install ArchFox, system configuration, apply configuration files, install additional packages, run profile installation
+# install ArchFox, system configuration, apply configuration files, install additional packages, run S3 script
 AFI_S3 () {
     AFI_DEBUG "triggering AFI_S3"
     if [ "$AFI_CONF_DEMO" == false ]; then
@@ -362,7 +480,12 @@ AFI_S3 () {
     fi
     AFI_DEBUG "AFI_S3: done."
 }
-
+AFI_CONF_S3 () {
+    #AFI_DCONF_SCRIPT="dev"
+    #AFI_DCONF_GPUDRI="none"
+    #AFI_DCONF_USEYAY=true
+    #AFI_DCONF_S3_PKGS
+}
 
 
 
@@ -386,42 +509,38 @@ AFI_HELP () {
     fi
     AFI_TEMP_CHANGELOG="${AFI_TEMP_CHANGELOG%\\n}" # delete last \n
     AFI_TEMP_CHANGELOG="${AFI_TEMP_CHANGELOG%┣ *}┗ ${AFI_TEMP_CHANGELOG##*┣ }" # change last "┣" to "┗"
-    AFI_TEMP_A=${AFI_TEMP_CHANGELOG%┗*} # store all points except last      < start ; line with "┗" )
-    AFI_TEMP_B="┗${AFI_TEMP_CHANGELOG##*┗}" # store last point              < line with "┗" ; end >
-    AFI_TEMP_B="${AFI_TEMP_B//┃ /  }" # change all "┃" to "  " in AFI_TEMP_B
+    local AFI_TEMP_A=${AFI_TEMP_CHANGELOG%┗*} # store all points except last      < start ; line with "┗" )
+    local AFI_TEMP_B="┗${AFI_TEMP_CHANGELOG##*┗}" # store last point              < line with "┗" ; end >
+    local AFI_TEMP_B="${AFI_TEMP_B//┃ /  }" # change all "┃" to "  " in AFI_TEMP_B
     AFI_TEMP_CHANGELOG="${AFI_TEMP_A}${AFI_TEMP_B}\n" # combine both parts
-    unset AFI_TEMP_A
-    unset AFI_TEMP_B
 
-#    # make profile list
-#    cd $AFI_VAR_PFDIR
-#    AFI_TEMP_PROFILES=()
-#    for folder in *; do
-#        if [[ -d "$folder" ]]; then
-#            if [[ ! -f "$folder/init.sh" ]]; then
-#                AFI_WARN "The $folder profile does not contain a init.sh file"; continue;
-#            fi
-#            # check files
-#            if [[ -f "$folder/description.txt" ]]; then AFI_TEMP_DESFILE=description.txt
-#            elif [[ -f "$folder/README.md" ]]; then AFI_TEMP_DESFILE=README.md
-#            else AFI_TEMP_DESFILE="null"
-#            fi
-#            # print description
-#            fill=$(printf "%0.s┈" $(seq 1 $(( 135 - ${#folder} - ${#AFI_TEMP_DESFILE} - 8)) ))
-#            AFI_TEMP_TEXT="$(printf "    ${folder} ${fill} (${AFI_TEMP_DESFILE})")\n"
-#
-#            if [ $AFI_TEMP_DESFILE != "null" ]; then
-#                while IFS= read -r line || [[ -n "$line" ]]; do
-#                    AFI_TEMP_TEXT+="      ┃ $line\n"
-#                done < "$folder/$AFI_TEMP_DESFILE"
-#                AFI_TEMP_TEXT="$(printf "$AFI_TEMP_TEXT" | sed '$ s/      ┃/      ╹/')\n"
-#            #else AFI_TEMP_TEXT+="      ╹ This profile does not contain a description.txt or README.md file\n"
-#            fi
-#            AFI_TEMP_PROFILES+=$AFI_TEMP_TEXT
-#        fi
-#    done
-#    unset AFI_TEMP_TEXT
-#    unset AFI_TEMP_DESFILE
+    # make S3 script list
+    cd $AFI_VAR_PFDIR
+    AFI_TEMP_SCRIPTS=()
+    for folder in *; do
+        if [[ -d "$folder" ]]; then
+            if [[ ! -f "$folder/init.sh" ]]; then
+                AFI_WARN "The $folder S3 script does not contain a init.sh file"; continue;
+            fi
+            # check files
+            if [[ -f "$folder/description.txt" ]]; then AFI_TEMP_DESFILE=description.txt
+            elif [[ -f "$folder/README.md" ]]; then AFI_TEMP_DESFILE=README.md
+            else AFI_TEMP_DESFILE="null"; fi
+            # print description
+            fill=$(printf "%0.s┈" $(seq 1 $(( 135 - ${#folder} - ${#AFI_TEMP_DESFILE} - 8)) ))
+            local AFI_TEMP_TEXT="$(printf "    ${folder} ${fill} (${AFI_TEMP_DESFILE})")\n"
+
+            if [ $AFI_TEMP_DESFILE != "null" ]; then
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                    AFI_TEMP_TEXT+="      ┃ $line\n"
+                done < "$folder/$AFI_TEMP_DESFILE"
+                AFI_TEMP_TEXT="$(printf "$AFI_TEMP_TEXT" | sed '$ s/      ┃/      ╹/')\n"
+            #else AFI_TEMP_TEXT+="      ╹ This S3 script does not contain a description.txt or README.md file\n"
+            fi
+            AFI_TEMP_SCRIPTS+=$AFI_TEMP_TEXT
+        fi
+    done
+    unset AFI_TEMP_DESFILE
 
     # print help
     printf "INFO: type \":q\" or press <Esc> to exit.
@@ -457,7 +576,7 @@ DESCRIPTION
       ┣ S1      ━ prepare the selected disk (format, create partitions, make filesystem).
       ┣ S2      ━ install packages required for system and basic functionality to work,
       ┃           add user, change passwords for user and root, copy configuration,
-      ┃           copy the installer to the /root directory for further configuration/installation (can be disabled in custom profile).
+      ┃           copy the installer to the /root directory for further configuration/installation (can be disabled in custom S3 script).
       ┗ S3      ━ apply configuration, install additional packages e.g. window/desktop enviroment,
                   login manager, file manager, terminal emuletor, and other apps.
     ArchFox can also be installed on an existing Arch Linux installation, just run S3 mode.
@@ -479,15 +598,15 @@ OPTIONS
      ┣ --ignore     -I  ━ ignore warns.
      ┣ --nochecksum -N  ━ skip checksum verification.    
      ┣ --colors     -C  ━ turn off colors or change color mode by specifying the mode.
-     ┃ ┗ mode*          ━ color mode [8 16 256], \"true\" to select automatically or \"false\" to disable.
+     ┃ ┗*mode           ━ color mode [8 16 256], \"true\" to select automatically or \"false\" to disable.
      ┗ --dev        -D  ━ run color debug test, and installator in demo mode. (overrides all other flags).
        ┗ noexit         ━ you can add this argument after this flag to cancel program exit.
 
 SYNTAX
     command [flags]
       ┗ --example   -e  ━ this is not a real flag, its just a example to show the syntax.   (\"-e\" or \"--example\")
-        ┣*args          ━ this is an required argument of flag, you can add it after flag   (-e args)
-        ┗ args          ━ this is an optional argument of flag, you can add it after flag   (-e args)
+        ┣ args          ━ this is an required argument of flag, you can add it after flag   (-e args)
+        ┗*args          ━ this is an optional argument of flag, you can add it after flag   (-e args)
     examples:
       ┃ # this command will run fully automatic install with additional debug info, and no colors.
       ┃ # make sure you enter the correct drive in the configuration at the top of script file to avoid wiping the wrong drive.
@@ -508,7 +627,7 @@ SYNTAX
       - removed
       = changed/modified/fixed
 
-PROFILES
+S3_SCRIPTS
     [in development]
 
 CHANGELOG
@@ -702,8 +821,8 @@ AFI_VALIDATE () {
     AFI_VAR_VALIDATED=true
 }
 
-## ==================== config file handling =============================
-# AFI_CONF_XXX *<path> *<varname> <content>
+## ==================== I/O functions ====================================
+# usage: AFI_CONF_SET <path> <varname> <content>
 AFI_CONF_SET () {
     local AFI_TEMP_A="$1"; shift # get file path
     local AFI_TEMP_B="$1"; shift # get variable name
@@ -713,11 +832,11 @@ AFI_CONF_SET () {
         echo "$AFI_TEMP_B=\"$@\"" >> "$AFI_TEMP_A" # if the variable does not exist, create it at the end of the file
     fi
 }
-
+# usage: AFI_CONF_GET <path> <varname>
 AFI_CONF_GET () {
     echo "$(grep "^$2=" "$1" | cut -d'=' -f2- | tr -d '"')"
 }
-
+# usage: AFI_CONF_DEL <path> <varname>
 AFI_CONF_DEL () {
     if grep -q "^$2=" "$1"; then sed -i "/^$2=/d" "$1"; fi
 }
@@ -860,8 +979,8 @@ esac
 
 ## ==================== END, clear all variables =========================
 unset $(compgen -v AFI_)
+rm -f $AFI_VAR_TEMPFILE
 exit 0
-
 
 # exit codes:
 # 0 - no error
@@ -878,6 +997,36 @@ exit 0
 #
 #
 
+AFI_DEV_TRASH () {
+
+
+
+    # usage: AFI_CONF_VIM <varname> <comment> <content>
+    AFI_CONF_VIM () {
+        local AFI_TEMP_A="$1"; shift # varname
+        local AFI_TEMP_B="$1"; shift # comment
+        local AFI_TEMP_C=("$@")
+        local AFI_TEMP_FILE=$(mktemp "/tmp/afi_temp_deleteme.XXX")
+        # write
+        # list of packages to install, you can modify it as you like (top line are taken as comment), Enter package names from new lines, each line is treated as 1 package name:
+        printf "" > $AFI_TEMP_FILE
+        printf "\n" >> $AFI_TEMP_FILE
+        for pkg in "${AFI_TEMP_C[@]}"; do
+            printf "$pkg\n" >> $AFI_TEMP_FILE
+        done
+        # edit
+        vim -c 'autocmd TextChanged,TextChangedI * silent write' -c 'startinsert' -c 'map <Esc> :q!<CR>' "$AFI_TEMP_FILE"
+        # read
+        sed -i '1d' "$AFI_TEMP_FILE"
+        mapfile -t "$AFI_TEMP_A" < "$AFI_TEMP_FILE"
+        rm -f "$AFI_TEMP_FILE"
+    }
+
+
+
+
+
+}
 
 
 
