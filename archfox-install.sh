@@ -1,5 +1,5 @@
 #!/bin/bash
-AFI_VERSION="1.0.8-A"
+AFI_VERSION="1.0.9-B"
 AFI_AUTHOR=( sudoTheFoxis )
 
 
@@ -16,7 +16,7 @@ AFI_CONF_RAINBOW=true               #   display rainbow in dev test mode
 
 ## AFI main config
 AFI_CONF_FILE="AFI_CONFIG.conf"     #   config file name, from with configuration will be imported. (overrides everything)
-AFI_CONF_TEMP=$(mktemp "/tmp/AFI_CONF_TEMP.XXX") # temp config file that will be deleted on script end
+#AFI_CONF_TEMP=$(mktemp "/tmp/AFI_CONF_TEMP.XXX") # temp config file that will be deleted on script end
 
 ## installator configuration
 AFI_CONF_DEMO=false                 #   run in demo mode.
@@ -38,8 +38,20 @@ AFI_DCONF_S0_PKGS=(
 )
 
 ## ==================== S1
-AFI_DCONF_DEV="/dev/sdx"             #   disk that will be used
-AFI_DCONF_HARDFORMAT=false           #   make hard format (dd if=/dev/zero of=/dev/sdx)
+AFI_DCONF_DEV="/dev/sdx"            #   disk that will be used
+AFI_DCONF_DISKLABEL=gpt             #   disk label (MBR - legacy bootloader, GPT - efi bootloader) (currently installator support only gpt)
+AFI_DCONF_PARTLAYOUT=(              #   partition layout
+    # [start]/[end] set where partition will begin and end 
+    # [fstype] set what file system will be on this partition
+    # [label] set partition label
+    # [type] boot - partition will be mark as bootloader partition
+    #        root - partition where system will be installed
+    #        home - partition that will be mounted as /home
+    #        data - primary data partition
+    "( [start]='1MB' [end]='257MB' [fs]='fat32' [label]='BOOT' [type]='boot' )"
+    "( [start]='258MB' [end]='-1MB' [fs]='ext4' [label]='ROOT' [type]='root' )"
+)
+AFI_DCONF_HARDFORMAT=false          #   make hard format (dd if=/dev/zero of=/dev/sdx)
 
 ## ==================== S2
 AFI_DCONF_HOSTNAME="archfox"         #   system/computer name
@@ -174,6 +186,56 @@ AFI_S0 () {
 }
 
 ## ==================== S1 ===============================================
+AFI_CONF_S1 () {
+    if [ $AFI_CONF_DEFAULT != true ]; then
+        # AFI_CONF_DEV
+        clear
+        lsblk -f
+        while true; do
+            printf "Enter the disk path ($AFI_DCONF_DEV): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_DEV; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # check if disk exists
+            AFI_TEMP_INPUT=${AFI_TEMP_INPUT//"/dev/"}; AFI_TEMP_A=$(lsblk -no TYPE "/dev/$AFI_TEMP_INPUT")
+            if printf "$AFI_TEMP_A\n" | grep -q "disk"; then AFI_DEBUG "/dev/$AFI_TEMP_INPUT is a disk\n"
+            elif printf "$AFI_TEMP_A\n" | grep -q "part"; then AFI_WARN "/dev/$AFI_TEMP_INPUT is a partition\n"  
+            else AFI_ERROR "/dev/$AFI_TEMP_INPUT is not a block device\n"; continue; fi
+            # check if disk size >= 6 GB
+            AFI_TEMP_B=$(( $(cat /sys/class/block/$AFI_TEMP_INPUT/size) * 512 / 1024 / 1024 / 1024 ))
+            if (( ${AFI_TEMP_B%%.*} >= 6 )); then AFI_DEBUG "Disk /dev/$AFI_TEMP_INPUT is bigger than 6 GB ($AFI_TEMP_B GB)\n"
+            else AFI_WARN "Disk /dev/$AFI_TEMP_INPUT is smaller than recomended size: 6 GB ($AFI_TEMP_B GB)\n"; fi
+            # save 
+            AFI_CONF_DEV="/dev/$AFI_TEMP_INPUT"
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_DCONF_DISKLABEL
+
+        #AFI_DCONF_PARTLAYOUT
+        while true; do
+            printf "\nDo you want to modify partiton layput? (y/N): "; read -r AFI_TEMP_INPUT; 
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT="N"; fi
+            case "$AFI_TEMP_INPUT" in
+                [Yy]* ) AFI_EDITPT; break ;;
+                [Nn]* ) break ;;
+                * ) AFI_ERROR "unsupported choice"; continue ;;
+            esac
+        done
+
+        # AFI_CONF_HARDFORMAT
+        AFI_INFO "Do you wish to make hard format? ( dd if=/dev/zero of=/dev/sdx )\n"
+        while true; do
+            printf "Prepare hard format ($AFI_DCONF_HARDFORMAT): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HARDFORMAT; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_HARDFORMAT=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+    else
+        AFI_CONF_DEV=$AFI_DCONF_DEV
+        AFI_CONF_HARDFORMAT=$AFI_DCONF_HARDFORMAT
+    fi
+}
 # prepare disk for system installation (format disk and create partitions)
 AFI_S1 () {
     AFI_DEBUG "triggering AFI_S1"
@@ -218,40 +280,142 @@ AFI_S1 () {
     fi
     AFI_DEBUG "AFI_S1: done."
 }
-AFI_CONF_S1 () {
-    # AFI_CONF_DEV
-    clear
-    lsblk -f
-    while true; do
-        printf "Enter the disk path ($AFI_DCONF_DEV): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_DEV; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # check if disk exists
-        AFI_TEMP_INPUT=${AFI_TEMP_INPUT//"/dev/"}; AFI_TEMP_A=$(lsblk -no TYPE "/dev/$AFI_TEMP_INPUT")
-        if printf "$AFI_TEMP_A\n" | grep -q "disk"; then AFI_DEBUG "/dev/$AFI_TEMP_INPUT is a disk\n"
-        elif printf "$AFI_TEMP_A\n" | grep -q "part"; then AFI_WARN "/dev/$AFI_TEMP_INPUT is a partition\n"  
-        else AFI_ERROR "/dev/$AFI_TEMP_INPUT is not a block device\n"; continue; fi
-        # check if disk size >= 6 GB
-        AFI_TEMP_B=$(( $(cat /sys/class/block/$AFI_TEMP_INPUT/size) * 512 / 1024 / 1024 / 1024 ))
-        if (( ${AFI_TEMP_B%%.*} >= 6 )); then AFI_DEBUG "Disk /dev/$AFI_TEMP_INPUT is bigger than 6 GB ($AFI_TEMP_B GB)\n"
-        else AFI_WARN "Disk /dev/$AFI_TEMP_INPUT is smaller than recomended size: 6 GB ($AFI_TEMP_B GB)\n"; fi
-        # save 
-        AFI_CONF_DEV=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    # AFI_CONF_HARDFORMAT
-    AFI_INFO "Do you wish to make hard format? ( dd if=/dev/zero of=/dev/sdx )\n"
-    while true; do
-        printf "Prepare hard format ($AFI_DCONF_HARDFORMAT): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HARDFORMAT; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_HARDFORMAT=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-}
 
 ## ==================== S2 ===============================================
+AFI_CONF_S2 () {
+    if [ $AFI_CONF_DEFAULT != true ]; then
+        clear
+        #AFI_CONF_HOSTNAME="archfox"
+        while true; do
+            printf "Choose a hostname ($AFI_DCONF_HOSTNAME): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HOSTNAME; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_HOSTNAME=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_USERNAME="home"
+        while true; do
+            printf "Choose a username ($AFI_DCONF_USERNAME): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERNAME; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_USERNAME=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_USERPASS="home"
+        while true; do
+            printf "Choose a user password ($AFI_DCONF_USERPASS): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERPASS; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_USERPASS=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_ROOTPASS="root"
+        while true; do
+            printf "Choose a root password ($AFI_DCONF_ROOTPASS): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_ROOTPASS; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_LOCALE="en_US.UTF-8"
+        while true; do
+            printf "Choose a locale ($AFI_DCONF_LOCALE): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_LOCALE; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_LOCALE=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_TIMEZONE="Europe/Warsaw"
+        while true; do
+            printf "Set time zone ($AFI_DCONF_TIMEZONE): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_TIMEZONE; fi
+            if [[ "$AFI_CONF_TIMEZONE" == "exit" ]]; then exit 2; fi
+            # save 
+            AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_MOUNTPATH="/mnt"
+        while true; do
+            printf "Provide mount point where disk will be mounted ($AFI_DCONF_MOUNTPATH): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_MOUNTPATH; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # check
+            if [ ! -d "$AFI_TEMP_INPUT" ]; then AFI_ERROR "Provided mount point does not exists: $AFI_TEMP_INPUT"; continue; fi
+            # save 
+            AFI_CONF_MOUNTPATH=$AFI_TEMP_INPUT
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_CONF_AUTOUMOUNT=false
+        while true; do
+            printf "Do you wish to auto umount disk after install ($AFI_DCONF_AUTOUMOUNT): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_AUTOUMOUNT; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # save 
+            case "$AFI_TEMP_INPUT" in 
+                [YyTt1] )
+                    AFI_CONF_AUTOUMOUNT=true ;;
+                [NnFf0] )
+                    AFI_CONF_AUTOUMOUNT=false ;;
+                *)
+                    AFI_ERROR "unsupported input: $AFI_TEMP_INPUT, chose true or false"; continue
+            esac
+            unset AFI_TEMP_INPUT; break
+        done
+        #AFI_DCONF_S2_PKGS
+        while true; do
+            printf "Do you wish to edit the list of packages that will be installed (Y/n): "; read -r AFI_TEMP_INPUT
+            if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT="Y"; fi
+            if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+            # edit
+            case "$AFI_TEMP_INPUT" in 
+                [YyTt1] )
+                    AFI_CONF_VIM "AFI_TEMP_PTCH" "Here you can edit the list of packages that will be installed (one line = one package)" ${AFI_DCONF_S2_PKGS[*]} ;;
+                [NnFf0] )
+                    AFI_TEMP_PTCH=$AFI_DCONF_S2_PKGS ;;
+                *)
+                    AFI_ERROR "unsupported input: $AFI_TEMP_INPUT, chose Yes or No"; continue
+            esac ; unset AFI_TEMP_INPUT;
+            # check
+            AFI_DEBUG "checking package list"
+            local AFI_TEMP_VPKG=(); local AFI_TEMP_XPKG=()
+            for PKG in ${AFI_TEMP_PTCH[@]}; do
+                local AFI_TEMP_A=$(pacman -Sp $PKG)
+                if [[ -z "$AFI_TEMP_A" ]]; then AFI_TEMP_XPKG+=($PKG)
+                else AFI_TEMP_VPKG+=($PKG); fi
+            done ; unset AFI_TEMP_PTCH
+            # save
+            if [ ${#AFI_TEMP_XPKG[@]} -ge 1 ]; then
+                AFI_WARN "The following packages were not found: \n${AFI_TEMP_XPKG[*]}"
+                printf "Do you want to skip the packages were not found, and continue? (Y/n): "; read -r AFI_TEMP_INPUT
+                if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT="Y"; fi
+                if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
+                case "$AFI_TEMP_INPUT" in 
+                    [YyTt1] )
+                        AFI_CONF_S2_PKGS=$AFI_TEMP_VPKG; break ;;
+                    [NnFf0] )
+                        continue ;;
+                    *)
+                        AFI_ERROR "unsupported input: $AFI_TEMP_INPUT, chose Yes or No"; continue
+                esac
+            else AFI_CONF_S2_PKGS=$AFI_TEMP_VPKG; break; fi
+        done
+    else
+        AFI_CONF_HOSTNAME=$AFI_DCONF_HOSTNAME
+        AFI_CONF_USERNAME=$AFI_DCONF_USERNAME
+        AFI_CONF_USERPASS=$AFI_DCONF_USERPASS
+        AFI_CONF_ROOTPASS=$AFI_DCONF_ROOTPASS
+        AFI_CONF_LOCALE=$AFI_DCONF_LOCALE
+        AFI_CONF_TIMEZONE=$AFI_DCONF_TIMEZONE
+        AFI_CONF_MOUNTPATH=$AFI_DCONF_MOUNTPATH
+        AFI_CONF_AUTOUMOUNT=$AFI_DCONF_AUTOUMOUNT
+        AFI_CONF_S2_PKGS=$AFI_DCONF_S2_PKGS
+    fi
+}
 # install working system with basic functionality (bare bones arch linux)
 AFI_S2 () {
     AFI_DEBUG "triggering AFI_S2"
@@ -378,93 +542,15 @@ printf \"[AFI][chroot]: Exitting the chroot environment\\n\"
     fi
     AFI_DEBUG "AFI_S2: done."
 }
-AFI_CONF_S2 () {
-    clear
-    #AFI_CONF_HOSTNAME="archfox"
-    while true; do
-        printf "Choose a hostname ($AFI_DCONF_HOSTNAME): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_HOSTNAME; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_HOSTNAME=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_USERNAME="home"
-    while true; do
-        printf "Choose a username ($AFI_DCONF_USERNAME): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERNAME; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_USERNAME=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_USERPASS="home"
-    while true; do
-        printf "Choose a user password ($AFI_DCONF_USERPASS): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_USERPASS; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_USERPASS=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_ROOTPASS="root"
-    while true; do
-        printf "Choose a root password ($AFI_DCONF_ROOTPASS): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_ROOTPASS; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_LOCALE="en_US.UTF-8"
-    while true; do
-        printf "Choose a locale ($AFI_DCONF_LOCALE): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_LOCALE; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_LOCALE=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_TIMEZONE="Europe/Warsaw"
-    while true; do
-        printf "Set time zone ($AFI_DCONF_TIMEZONE): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_TIMEZONE; fi
-        if [[ "$AFI_CONF_TIMEZONE" == "exit" ]]; then exit 2; fi
-        # save 
-        AFI_CONF_ROOTPASS=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_MOUNTPATH="/mnt"
-    while true; do
-        printf "Provide mount point where disk will be mounted ($AFI_DCONF_MOUNTPATH): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_MOUNTPATH; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # check
-        if [ ! -d "$AFI_TEMP_INPUT" ]; then AFI_ERROR "Provided mount point does not exists: $AFI_TEMP_INPUT"; continue; fi
-        # save 
-        AFI_CONF_MOUNTPATH=$AFI_TEMP_INPUT
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_CONF_AUTOUMOUNT=false
-    while true; do
-        printf "Do you wish to auto umount disk after install ($AFI_DCONF_AUTOUMOUNT): "; read -r AFI_TEMP_INPUT
-        if [ -z "$AFI_TEMP_INPUT" ]; then AFI_TEMP_INPUT=$AFI_DCONF_AUTOUMOUNT; fi
-        if [[ "$AFI_TEMP_INPUT" == "exit" ]]; then exit 2; fi
-        # save 
-        case "$AFI_TEMP_INPUT" in 
-            [YyTt1] )
-                AFI_CONF_AUTOUMOUNT=true ;;
-            [NnFf0] )
-                AFI_CONF_AUTOUMOUNT=false ;;
-            *)
-                AFI_ERROR "unsupported input: $AFI_TEMP_INPUT, chose true or false"; continue
-        esac
-        unset AFI_TEMP_INPUT; break
-    done
-    #AFI_DCONF_S2_PKGS
-}
 
 ## ==================== S3 ===============================================
+AFI_CONF_S3 () {
+    #AFI_DCONF_SCRIPT="dev"
+    #AFI_DCONF_GPUDRI="none"
+    #AFI_DCONF_USEYAY=true
+    #AFI_DCONF_S3_PKGS
+    AFI_INFO "This function is currently under development."
+}
 # install ArchFox, system configuration, apply configuration files, install additional packages, run S3 script
 AFI_S3 () {
     AFI_DEBUG "triggering AFI_S3"
@@ -480,12 +566,7 @@ AFI_S3 () {
     fi
     AFI_DEBUG "AFI_S3: done."
 }
-AFI_CONF_S3 () {
-    #AFI_DCONF_SCRIPT="dev"
-    #AFI_DCONF_GPUDRI="none"
-    #AFI_DCONF_USEYAY=true
-    #AFI_DCONF_S3_PKGS
-}
+
 
 
 
@@ -840,6 +921,153 @@ AFI_CONF_GET () {
 AFI_CONF_DEL () {
     if grep -q "^$2=" "$1"; then sed -i "/^$2=/d" "$1"; fi
 }
+# usage: AFI_CONF_VIM <varname> <comment> <content>
+AFI_CONF_VIM () {
+    local AFI_TEMP_A="$1"; shift # varname
+    local AFI_TEMP_B="$1"; shift # comment
+    local AFI_TEMP_C=("$@")
+    local AFI_TEMP_FILE=$(mktemp "/tmp/afi_temp_deleteme.XXX")
+    # write
+    # list of packages to install, you can modify it as you like (top line are taken as comment), Enter package names from new lines, each line is treated as 1 package name:
+    printf "${AFI_TEMP_B}\n" > $AFI_TEMP_FILE
+    for pkg in "${AFI_TEMP_C[@]}"; do
+        printf "$pkg\n" >> $AFI_TEMP_FILE
+    done
+    # edit
+    vim -c 'autocmd TextChanged,TextChangedI * silent write' -c 'startinsert' -c 'map <Esc> :q!<CR>' "$AFI_TEMP_FILE"
+    # read
+    sed -i '1d' "$AFI_TEMP_FILE"
+    mapfile -t "$AFI_TEMP_A" < "$AFI_TEMP_FILE"
+    rm -f "$AFI_TEMP_FILE"
+}
+# usage: AFI_PRINTFPT "${ARRAY[@]}"
+AFI_PRINTPT () {
+    if [ ! -z "$1" ]; then AFI_TEMP_PPT_PARTLAYOUT=("$@")
+    else AFI_TEMP_PPT_PARTLAYOUT=("$AFI_DCONF_PARTLAYOUT"); fi
+    # Print partition tabble┷╇
+    printf "\n"
+    printf "  ┏━<( device: %-14s)>━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n" "$AFI_DCONF_DEV"
+    printf "  ┃  Type: %-5s┆ Size: %-8s┆ Model: %-32s┃\n" "$AFI_DCONF_DISKLABEL" "$(( $(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/size) * 512 / 1024 / 1024 / 1024 )) GB" "$(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/device/model)"
+    printf "  ┣━━━━┯━<start>┷━━┯━<end>━━━━━┯┷<label>━━━━━━━━━━━┯━<fs>━━━━━┯━<type>━━━┫\n"
+    for i in "${!AFI_TEMP_PPT_PARTLAYOUT[@]}"; do
+        eval "declare -A AFI_TEMP_PPT_PART=${AFI_TEMP_PPT_PARTLAYOUT[$i]}"
+        printf "  ┃ %-3s┆ %-10s┆ %-10s┆ %-18s┆ %-9s┆ %-9s┃\n" "$i." "${AFI_TEMP_PPT_PART[start]}" "${AFI_TEMP_PPT_PART[end]}" "${AFI_TEMP_PPT_PART[label]}" "${AFI_TEMP_PPT_PART[fs]}" "${AFI_TEMP_PPT_PART[type]}"
+    done
+    printf "  ┗━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━┷━━━━━━━━━━┛\n"
+    unset AFI_TEMP_PPT_PARTLAYOUT; unset AFI_TEMP_PPT_PART
+}
+# usage: AFI_AFI_CTKB <input>
+AFI_CTKB () {
+    local input=$1; if [[ $input == -* ]]; then input=$(printf "%s\n" $input | sed 's/^-//'); fi
+    local number=$(printf "%s\n" $input | sed 's/[^0-9]//g'); local unit=$(printf "%s\n" $input | sed 's/[0-9]//g')
+    case $unit in
+        [Tt]* ) printf "$(($number * 1024 * 1024 * 1024 ))\n" ;; # 1 TB = 1,073,741,824 KB
+        [Gg]* ) printf "$(($number * 1024 * 1024 ))\n" ;; # 1 GB = 1,048,576 KB
+        [Mm]* ) printf "$(( $number * 1024 ))\n" ;; # 1 MB = 1,024 KB
+        [Kk]* ) printf "$number\n" ;; # 1 KB = 1 KB     XD
+        *) printf "null\n";;
+    esac
+}
+# usage: AFI_EDITPT
+AFI_EDITPT () {
+    clear
+    # set some variables
+    AFI_TEMP_PARTLAYOUT=("${AFI_DCONF_PARTLAYOUT[@]}")
+    AFI_TEMP_EPT_DISKSIZE=$(( $(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/size) * 512 / 1024 )) # KB
+    # Generate Partition
+    GENPART () {
+        if [ ! -z "$1" ]; then
+            eval "declare -A AFI_TEMP_PART=$1"; AFI_TEMP_GP_START=${AFI_TEMP_PART[start]}; AFI_TEMP_GP_END=${AFI_TEMP_PART[end]}
+            AFI_TEMP_GP_LABEL=${AFI_TEMP_PART[label]}; AFI_TEMP_GP_FS=${AFI_TEMP_PART[fs]}; AFI_TEMP_GP_TYPE=${AFI_TEMP_PART[type]}
+        else 
+            AFI_TEMP_GP_START="1MB"; AFI_TEMP_GP_END="-1MB"; AFI_TEMP_GP_FS="ext4"; AFI_TEMP_GP_LABEL="partition"; AFI_TEMP_GP_TYPE="data"
+        fi
+        while true; do # START
+            printf "Start ($AFI_TEMP_GP_START): "; read -r AFI_TEMP_GP_INPUT; if [ -z "$AFI_TEMP_GP_INPUT" ]; then AFI_TEMP_GP_INPUT=$AFI_TEMP_GP_START; fi
+            if [ $(AFI_CTKB $AFI_TEMP_GP_INPUT) -gt $AFI_TEMP_EPT_DISKSIZE ]; then
+                printf "warning your partition starts outside the disk ($(AFI_CTKB $AFI_TEMP_GP_INPUT)KB > ${AFI_TEMP_EPT_DISKSIZE}KB)\n"; printf "Cancel/Ignore: "; read -r AFI_TEMP_GP_CHK; if [[ $AFI_TEMP_GP_CHK =~ ^[cC] ]]; then continue; fi;
+            fi
+            AFI_TEMP_GP_START=$AFI_TEMP_GP_INPUT; break
+        done
+        while true; do # END
+            printf "End ($AFI_TEMP_GP_END): "; read -r AFI_TEMP_GP_INPUT; if [ -z "$AFI_TEMP_GP_INPUT" ]; then AFI_TEMP_GP_INPUT="$AFI_TEMP_GP_END"; fi
+            if [ $(AFI_CTKB $AFI_TEMP_GP_INPUT) -gt $AFI_TEMP_EPT_DISKSIZE ]; then
+                printf "warning your partition ends outside the disk ($(AFI_CTKB $AFI_TEMP_GP_INPUT)KB > ${AFI_TEMP_EPT_DISKSIZE}KB)\n"; printf "Cancel/Ignore: "; read -r AFI_TEMP_GP_CHK; if [[ $AFI_TEMP_GP_CHK =~ ^[cC] ]]; then continue; fi;
+            fi
+            AFI_TEMP_GP_END=$AFI_TEMP_GP_INPUT; break
+        done
+                       # LABEL
+        printf "Label ($AFI_TEMP_GP_LABEL): "; read -r AFI_TEMP_GP_INPUT; if [ -z "$AFI_TEMP_GP_INPUT" ]; then AFI_TEMP_GP_INPUT=$AFI_TEMP_GP_LABEL; fi; AFI_TEMP_GP_LABEL=$AFI_TEMP_GP_INPUT
+        while true; do # FileSystem
+            printf "FileSystem ($AFI_TEMP_GP_FS): "; read -r AFI_TEMP_GP_INPUT; if [ -z "$AFI_TEMP_GP_INPUT" ]; then AFI_TEMP_GP_INPUT=$AFI_TEMP_GP_FS; fi
+            case "$AFI_TEMP_GP_INPUT" in
+                "ext4"|"fat32" ) AFI_TEMP_GP_FS=$AFI_TEMP_GP_INPUT; break;;
+                *) printf "This file system is currently unsupported: $AFI_TEMP_GP_INPUT\n"; continue;;
+            esac
+        done
+        while true; do # TYPE
+            printf "Type ($AFI_TEMP_GP_TYPE): "; read -r AFI_TEMP_GP_INPUT; if [ -z "$AFI_TEMP_GP_INPUT" ]; then AFI_TEMP_GP_INPUT=$AFI_TEMP_GP_TYPE; fi
+            case "$AFI_TEMP_GP_INPUT" in
+                "boot"|"root"|"home"|"data" ) AFI_TEMP_GP_TYPE=$AFI_TEMP_GP_INPUT; break;;
+                *) printf "Unknown partition type: $AFI_TEMP_GP_INPUT\n"; continue;;
+            esac
+        done
+                       # return
+        AFI_TEMP_GP_OUT="( [start]='$AFI_TEMP_GP_START' [end]='$AFI_TEMP_GP_END' [label]='$AFI_TEMP_GP_LABEL' [fs]='$AFI_TEMP_GP_FS' [type]='$AFI_TEMP_GP_TYPE' )"
+        unset AFI_TEMP_GP_INPUT; unset AFI_TEMP_GP_CHK; unset AFI_TEMP_GP_START; unset AFI_TEMP_GP_END; unset AFI_TEMP_GP_FS; unset AFI_TEMP_GP_LABEL; unset AFI_TEMP_GP_TYPE
+    }
+    # configure disk
+    printf "type 'help' for help\n"; printf "Current partition layout:\n"; AFI_PRINTPT "${AFI_TEMP_PARTLAYOUT[@]}"
+    while true; do
+        printf "\nInput: "; read -r AFI_TEMP_CMD; if [ -z "$AFI_TEMP_CMD" ]; then AFI_TEMP_CMD="help"; fi; case "$AFI_TEMP_CMD" in
+            [Hh]* )
+                printf "
+Info:
+    This is just a simple partition layout configuration tool that will be used during installation.
+    If you want to make more advanced changes, I recommend using more advanced tools such as parted or fdisk.
+
+Syntax:
+    [start]/[end]   set where partition will begin and end 
+    [fs]            set what file system will be on this partition
+    [label]         set partition label
+    [type]          boot - partition will be mark as bootloader partition
+                    root - partition where system will be installed
+                    home - partition that will be mounted as /home
+                    data - primary data partition
+Available commands:
+help   - print this menu
+print  - print current partition layout
+del    - remove partition
+mod    - modify existing partition
+add    - add partition
+save   - save modified partition tabble
+quit   - quit without saving
+vim    - edit partition layout as text in vim
+"
+                ;;
+            [Pp]* )
+                AFI_PRINTPT "${AFI_TEMP_PARTLAYOUT[@]}";;
+            [Dd]* ) 
+                printf "Enter the index of the partition you want to delete: "; read -r AFI_TEMP_INPUT; if [[ $AFI_TEMP_INPUT -ge 0 && ${#AFI_TEMP_PARTLAYOUT[@]}-1 -ge $AFI_TEMP_INPUT ]]; then 
+                    unset AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INPUT]; AFI_INFO "partition deleted"
+                else; AFI_ERROR "partition with this index does not exists"; fi ;;
+            [Mm]* ) 
+                printf "Enter the index of the partition you want to edit: "; read -r AFI_TEMP_INDEX; if [[ $AFI_TEMP_INDEX -ge 0 && ${#AFI_TEMP_PARTLAYOUT[@]}-1 -ge $AFI_TEMP_INDEX ]]; then
+                    GENPART "${AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INDEX]}"; AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INDEX]="$AFI_TEMP_GP_OUT"; AFI_INFO "partition with index $AFI_TEMP_INDEX has been modified"
+                else AFI_ERROR "partition with this index does not exists"; fi ;;
+            [Aa]* )
+                GENPART; AFI_TEMP_PARTLAYOUT+=("$AFI_TEMP_GP_OUT"); AFI_INFO "partition has been added" ;;
+            [Ss]* )
+                AFI_CONF_PARTLAYOUT=("${AFI_TEMP_PARTLAYOUT[@]}") ;;
+            [Qq]*|[Ee]* )
+                break;;
+            [Vv]* )
+                ;;
+            * )
+                AFI_ERROR "command not found: $AFI_TEMP_CMD" ;;
+        esac
+    done
+}
 
 ## ==================== output handling ==================================
 AFI_INFO () {
@@ -979,14 +1207,13 @@ esac
 
 ## ==================== END, clear all variables =========================
 unset $(compgen -v AFI_)
-rm -f $AFI_VAR_TEMPFILE
 exit 0
 
 # exit codes:
 # 0 - no error
 # 1 - unknown or undescribed error
 # 2 - process aborted by user
-# 3 - dev break point (just find the "exit 3" command and delete it)
+# 3 - dev break point (just find the "exit 3" and delete it)
 # 5 - sources validation failed
 # 6 - profile not found
 # 7 - chosen disk does not exists
@@ -998,33 +1225,7 @@ exit 0
 #
 
 AFI_DEV_TRASH () {
-
-
-
-    # usage: AFI_CONF_VIM <varname> <comment> <content>
-    AFI_CONF_VIM () {
-        local AFI_TEMP_A="$1"; shift # varname
-        local AFI_TEMP_B="$1"; shift # comment
-        local AFI_TEMP_C=("$@")
-        local AFI_TEMP_FILE=$(mktemp "/tmp/afi_temp_deleteme.XXX")
-        # write
-        # list of packages to install, you can modify it as you like (top line are taken as comment), Enter package names from new lines, each line is treated as 1 package name:
-        printf "" > $AFI_TEMP_FILE
-        printf "\n" >> $AFI_TEMP_FILE
-        for pkg in "${AFI_TEMP_C[@]}"; do
-            printf "$pkg\n" >> $AFI_TEMP_FILE
-        done
-        # edit
-        vim -c 'autocmd TextChanged,TextChangedI * silent write' -c 'startinsert' -c 'map <Esc> :q!<CR>' "$AFI_TEMP_FILE"
-        # read
-        sed -i '1d' "$AFI_TEMP_FILE"
-        mapfile -t "$AFI_TEMP_A" < "$AFI_TEMP_FILE"
-        rm -f "$AFI_TEMP_FILE"
-    }
-
-
-
-
+    AFI_WARN "You should not run this function"; exit 0
 
 }
 

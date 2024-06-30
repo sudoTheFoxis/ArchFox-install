@@ -2,8 +2,8 @@
 ▰ move to github
 ▰ modular profile handler
 ▰ check if anything works XD
-▰ S1 easy CUI config
 ▰ S2 easy CUI config
+▱ S1 easy CUI config
 ▱ S3 easy CUI config
 ▱ make S3 that works
 ▱ make AFI_MAIN that works

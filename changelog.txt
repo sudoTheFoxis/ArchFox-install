@@ -1,3 +1,10 @@
+1.0.9-B 2024-06-30:
+  + added custom partition layout support
+  + added partition layout configuration in S1 CUI
+  = fixed and added functionality to S1 CUI
+  = fixed and added functionality to S2 CUI
+  = fixed some bugs all over the script
+  = some other changes: added some functions, changed some config options...
 1.0.8-A 2024-06-28:
   + added CUI for S1 easy configuration
   + added CUI for S2 easy configuration
