@@ -1,3 +1,7 @@
+1.1.0-B 1024-07-02:
+  + added some functionality to AFI_MAIN
+  = changed how colors are stored/used
+  = fixed some bugs
 1.0.9-B 2024-06-30:
   + added custom partition layout support
   + added partition layout configuration in S1 CUI

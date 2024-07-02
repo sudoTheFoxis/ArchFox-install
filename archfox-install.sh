@@ -1,5 +1,5 @@
 #!/bin/bash
-AFI_VERSION="1.0.9-B"
+AFI_VERSION="1.1.0-B"
 AFI_AUTHOR=( sudoTheFoxis )
 
 
@@ -25,7 +25,7 @@ AFI_CONF_DEFAULT=false              #   don't ask for configuration, use the def
 AFI_CONF_AUTO=false                 #   don't ask for anything, choose the default option, full auto installation. (except configuration)
 
 ## ==================== S0
-AFI_DCONF_S0_PKGS=(
+AFI_CONF_S0_PKGS=(
     archlinux-keyring
     arch-install-scripts
     util-linux
@@ -38,7 +38,7 @@ AFI_DCONF_S0_PKGS=(
 )
 
 ## ==================== S1
-AFI_DCONF_DEV="/dev/sdx"            #   disk that will be used
+AFI_DCONF_DEV="/dev/sda"            #   disk that will be used
 AFI_DCONF_DISKLABEL=gpt             #   disk label (MBR - legacy bootloader, GPT - efi bootloader) (currently installator support only gpt)
 AFI_DCONF_PARTLAYOUT=(              #   partition layout
     # [start]/[end] set where partition will begin and end 
@@ -106,11 +106,20 @@ AFI_DCONF_S3_PKGS=(                  #   packages that will be installed on the 
     ttf-dejavu
 )
 
+## colors
+AFI_COLOR_WHITE="[38;5;231;1m"     #   WHITE
+AFI_COLOR_ORANGE="[38;5;202;1m"    #   ORANGE
+AFI_COLOR_CYAN="[38;5;39;1m"       #   CYAN
+AFI_COLOR_BLUE="[38;5;12;1m"       #   BLUE
+AFI_COLOR_GREEN="[38;5;10;1m"      #   GREEN
+AFI_COLOR_RED="[38;5;9;1m"         #   RED
+AFI_COLOR_YELLOW="[38;5;11;1m"     #   YELLOW
+AFI_COLOR_RESET="[0m"              #   RESET
+
 ## some variables (This is not part of the config)
 AFI_VAR_VALIDATED=false             #   set to true if you want to skip validation
 AFI_VAR_PWD=$PWD                    #   path where script runs
 AFI_VAR_CMD=$0                      #   script file name
-
 
 ### =================================================================================================================================================
 ### ==================== FUNCTIONS ==================================================================================================================
@@ -120,44 +129,84 @@ AFI_VAR_CMD=$0                      #   script file name
 AFI_MAIN () {
     AFI_DEBUG "triggering AFI_MAIN"  
 
-    AFI_INFO "This function is currently under development."
-    exit 3;
+    ## get configuration
+    AFI_CONF_S1
+    AFI_CONF_S2
+    AFI_CONF_S3
 
-    # import config from file
-    cd $AFI_VAR_PWD
-    if [ -f "$AFI_CONF_FILE" ]; then
-        read -r AFI_TEMP_INPUT -p "do you want to import the configuration from $AFI_CONF_FILE? (Y/n): "
-        case "$AFI_TEMP_INPUT" in
-            [Nn0]* )
-                AFI_INFO "The configuration has not been imported." ;;
+    ## check configuration
+    clear
+    # S0
+    printf "╔══< ${AFI_COLOR_BLUE}AFI config${AFI_COLOR_RESET} >════════════════════════════════════════════════════════════\n"
+    printf "║${AFI_COLOR_CYAN}[ConfFile]${AFI_COLOR_RESET}: $AFI_CONF_FILE\n"
+    printf "║${AFI_COLOR_CYAN}[Mode]${AFI_COLOR_RESET}: $AFI_CONF_MODE\n"
+    printf "║${AFI_COLOR_CYAN}[Demo]${AFI_COLOR_RESET}: $AFI_CONF_DEMO\n"
+    printf "║${AFI_COLOR_CYAN}[AUTO]${AFI_COLOR_RESET}: $AFI_CONF_AUTO\n"
+    printf "║${AFI_COLOR_CYAN}[Default]${AFI_COLOR_RESET}: $AFI_CONF_DEFAULT\n"
+    printf "║${AFI_COLOR_CYAN}[Packages]${AFI_COLOR_RESET}:"
+    AFI_TEMP_PCT="${AFI_COLOR_RESET}${AFI_COLOR_RESET}${AFI_COLOR_RESET}"
+    for pkg in "${AFI_CONF_S0_PKGS[@]}"; do
+        if (( ${#AFI_TEMP_PCT} + ${#pkg} + 1 > 75 )); then
+            printf "%s\n" "$AFI_TEMP_PCT"; AFI_TEMP_PCT="║            $pkg"
+        else AFI_TEMP_PCT="$AFI_TEMP_PCT $pkg"; fi
+    done
+    printf "%s\n" "$AFI_TEMP_PCT"
+
+    # S1
+    printf "╟──< ${AFI_COLOR_RED}S1 config${AFI_COLOR_RESET} >─────────────────────────────────────────────────────────────\n"
+    AFI_PRINTPT "║ " "${AFI_CONF_PARTLAYOUT[@]}"
+    printf "║${AFI_COLOR_CYAN}[HardFormat]${AFI_COLOR_RESET}: $AFI_CONF_HARDFORMAT\n"
+
+    # S2
+    printf "╟──< ${AFI_COLOR_YELLOW}S2 config${AFI_COLOR_RESET} >─────────────────────────────────────────────────────────────\n"
+    printf "║${AFI_COLOR_CYAN}[HostName]${AFI_COLOR_RESET}: $AFI_CONF_HOSTNAME\n"
+    printf "║${AFI_COLOR_CYAN}[UserName]${AFI_COLOR_RESET}: $AFI_CONF_USERNAME\n"
+    printf "║${AFI_COLOR_CYAN}[UserPass]${AFI_COLOR_RESET}: $AFI_CONF_USERPASS\n"
+    printf "║${AFI_COLOR_CYAN}[RootPass]${AFI_COLOR_RESET}: $AFI_CONF_ROOTPASS\n"
+    printf "║${AFI_COLOR_CYAN}[Locale]${AFI_COLOR_RESET}: $AFI_CONF_LOCALE\n"
+    printf "║${AFI_COLOR_CYAN}[TimeZone]${AFI_COLOR_RESET}: $AFI_CONF_TIMEZONE\n"
+    printf "║${AFI_COLOR_CYAN}[MountPath]${AFI_COLOR_RESET}: $AFI_CONF_MOUNTPATH\n"
+    printf "║${AFI_COLOR_CYAN}[AutoUMount]${AFI_COLOR_RESET}: $AFI_CONF_AUTOUMOUNT\n"
+    printf "║${AFI_COLOR_CYAN}[Packages]${AFI_COLOR_RESET}:"
+    AFI_TEMP_PCT="${AFI_COLOR_RESET}${AFI_COLOR_RESET}${AFI_COLOR_RESET}"
+    for pkg in "${AFI_CONF_S2_PKGS[@]}"; do
+        if (( ${#AFI_TEMP_PCT} + ${#pkg} + 1 > 75 )); then
+            printf "%s\n" "$AFI_TEMP_PCT"; AFI_TEMP_PCT="║            $pkg"
+        else AFI_TEMP_PCT="$AFI_TEMP_PCT $pkg"; fi
+    done
+    printf "%s\n" "$AFI_TEMP_PCT"
+
+    # S3
+    printf "╟──< ${AFI_COLOR_GREEN}S3 config${AFI_COLOR_RESET} >──────────────────────────────────────────────────────────────\n"
+    printf "║${AFI_COLOR_CYAN}[Script]${AFI_COLOR_RESET}: $AFI_CONF_SCRIPT\n"
+    printf "║${AFI_COLOR_CYAN}[GPUDri]${AFI_COLOR_RESET}: $AFI_CONF_GPUDRI\n"
+    printf "║${AFI_COLOR_CYAN}[UseYAY]${AFI_COLOR_RESET}: $AFI_CONF_USEYAY\n"
+    printf "║${AFI_COLOR_CYAN}[Packages]${AFI_COLOR_RESET}:"
+    AFI_TEMP_PCT="${AFI_COLOR_RESET}${AFI_COLOR_RESET}${AFI_COLOR_RESET}"
+    for pkg in "${AFI_CONF_S3_PKGS[@]}"; do
+        if (( ${#AFI_TEMP_PCT} + ${#pkg} + 1 > 75 )); then
+            printf "%s\n" "$AFI_TEMP_PCT"; AFI_TEMP_PCT="║            $pkg"
+        else AFI_TEMP_PCT="$AFI_TEMP_PCT $pkg"; fi
+    done
+    printf "%s\n" "$AFI_TEMP_PCT"
+    printf "╚════════════════════════════════════════════════════════════════════════════\n"
+
+    # check
+    while true; do
+        printf "\nIs that configuration right? (y/n): "; read -r AFI_TEMP_PCT
+        case "$AFI_TEMP_PCT" in
+            [TtYy1]* )
+                AFI_INFO "Proceeding the installation"; break ;;
+            [FfNn0]* )
+                AFI_INFO "Canceling installation"; exit 2 ;;
             * )
-                AFI_INFO "Reading file, importing configuration..."
-                AFI_CONF_DEFAULT=true
-                
-                ;;
+                AFI_ERROR "Unsupported choice"; continue ;;
         esac
-    fi
+    done
     
-    # Ask the user about the configuration
-    if [ "$AFI_CONF_DEFAULT" != true ]; then
-        AFI_INFO "Initializing the configuration"
-        # cli for easy configuration
-
-    fi
-
-    # config basic validation
-
-    # save config to file?
-
-    # execute functions
+    ## execute functions
     if [ "$AFI_CONF_DEMO" == false ]; then
-        # S0 stage
-        AFI_S0
-        # S1 stage
-        AFI_S1
-        # S2 stage
-        AFI_CONF_AUTOUMOUNT=false
-        AFI_S2
+        AFI_WARN "This function is currently under development."
     else
         AFI_DEBUG "MAIN: Running in demo mode, skipping..."
     fi
@@ -209,6 +258,8 @@ AFI_CONF_S1 () {
             unset AFI_TEMP_INPUT; break
         done
         #AFI_DCONF_DISKLABEL
+        # script currently supports only gpt disk label
+        AFI_CONF_DISKLABEL=$AFI_DCONF_DISKLABEL
 
         #AFI_DCONF_PARTLAYOUT
         while true; do
@@ -233,6 +284,8 @@ AFI_CONF_S1 () {
         done
     else
         AFI_CONF_DEV=$AFI_DCONF_DEV
+        AFI_CONF_DISKLABEL=$AFI_DCONF_DISKLABEL
+        AFI_CONF_PARTLAYOUT=("${AFI_DCONF_PARTLAYOUT[@]}")
         AFI_CONF_HARDFORMAT=$AFI_DCONF_HARDFORMAT
     fi
 }
@@ -413,7 +466,7 @@ AFI_CONF_S2 () {
         AFI_CONF_TIMEZONE=$AFI_DCONF_TIMEZONE
         AFI_CONF_MOUNTPATH=$AFI_DCONF_MOUNTPATH
         AFI_CONF_AUTOUMOUNT=$AFI_DCONF_AUTOUMOUNT
-        AFI_CONF_S2_PKGS=$AFI_DCONF_S2_PKGS
+        AFI_CONF_S2_PKGS=("${AFI_DCONF_S2_PKGS[@]}")
     fi
 }
 # install working system with basic functionality (bare bones arch linux)
@@ -545,11 +598,11 @@ printf \"[AFI][chroot]: Exitting the chroot environment\\n\"
 
 ## ==================== S3 ===============================================
 AFI_CONF_S3 () {
-    #AFI_DCONF_SCRIPT="dev"
-    #AFI_DCONF_GPUDRI="none"
-    #AFI_DCONF_USEYAY=true
-    #AFI_DCONF_S3_PKGS
-    AFI_INFO "This function is currently under development."
+    AFI_CONF_SCRIPT=$AFI_DCONF_SCRIPT
+    AFI_CONF_GPUDRI=$AFI_DCONF_GPUDRI
+    AFI_CONF_USEYAY=$AFI_DCONF_USEYAY
+    AFI_CONF_S3_PKGS=("${AFI_DCONF_S3_PKGS[@]}")
+
 }
 # install ArchFox, system configuration, apply configuration files, install additional packages, run S3 script
 AFI_S3 () {
@@ -841,38 +894,6 @@ AFI_DEV () {
     AFI_DEBUG "AFI_DEV: done."
 }
 
-## ==================== Update Color Sheme ===============================
-AFI_UpdateCS () {
-    AFI_DEBUG "triggering AFI_UpdateCS"
-    if [ $AFI_CONF_COLORS == true ]; then # if colors are enabled
-        AFI_TEMP_COLORS=$(tput colors)
-        case "${AFI_TEMP_COLORS}" in 
-            8) # 3-bit color mode
-                AFI_VAR_CMODE=8; AFI_VAR_PREFIX="[38;5;7m[[38;5;6mA[38;5;3mF[38;5;7mI]" ;;
-            16) # 4-bit color mode
-                AFI_VAR_CMODE=16; AFI_VAR_PREFIX="[38;5;15m[[38;5;12mA[38;5;14mF[38;5;15mI]" ;;
-            256) # 8-bit color mode
-                AFI_VAR_CMODE=256; AFI_VAR_PREFIX="[38;5;231;1m[[38;5;39;1mA[38;5;202;1mF[38;5;231;1mI]" ;;
-            *)
-                AFI_VAR_CMODE=null; AFI_VAR_PREFIX="[AFI]" ;;
-        esac
-        unset AFI_TEMP_COLORS
-        AFI_VAR_INFO_PREFIX="[38;5;10;1m[INFO][0m: "
-        AFI_VAR_DEBUG_PREFIX="[38;5;12;1m[DEBUG][0m:"
-        AFI_VAR_WARN_PREFIX="[38;5;11;1m[WARN][0m: "
-        AFI_VAR_ERROR_PREFIX="[38;5;9;1m[ERROR][0m:"
-    else # if colors are disabled
-        AFI_CONF_COLORS=false
-        AFI_VAR_CMODE=1 # 1-bit color mode
-        AFI_VAR_PREFIX="[AFI]"
-        AFI_VAR_INFO_PREFIX="[INFO]: "
-        AFI_VAR_DEBUG_PREFIX="[DEBUG]:"
-        AFI_VAR_WARN_PREFIX="[WARN]: "
-        AFI_VAR_ERROR_PREFIX="[ERROR]:"
-    fi
-    AFI_DEBUG "AFI_UpdateCS: done."
-}
-
 ## ==================== validation =======================================
 AFI_VALIDATE () {
     if [ "$AFI_VAR_VALIDATED" == true ]; then
@@ -940,20 +961,20 @@ AFI_CONF_VIM () {
     mapfile -t "$AFI_TEMP_A" < "$AFI_TEMP_FILE"
     rm -f "$AFI_TEMP_FILE"
 }
-# usage: AFI_PRINTFPT "${ARRAY[@]}"
+# usage: AFI_PRINTFPT <prefix> "${<array>[@]}"
 AFI_PRINTPT () {
+    local AFI_TEMP_PPT_PREFIX="$1"; shift # prefix
     if [ ! -z "$1" ]; then AFI_TEMP_PPT_PARTLAYOUT=("$@")
     else AFI_TEMP_PPT_PARTLAYOUT=("$AFI_DCONF_PARTLAYOUT"); fi
     # Print partition tabble┷╇
-    printf "\n"
-    printf "  ┏━<( device: %-14s)>━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n" "$AFI_DCONF_DEV"
-    printf "  ┃  Type: %-5s┆ Size: %-8s┆ Model: %-32s┃\n" "$AFI_DCONF_DISKLABEL" "$(( $(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/size) * 512 / 1024 / 1024 / 1024 )) GB" "$(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/device/model)"
-    printf "  ┣━━━━┯━<start>┷━━┯━<end>━━━━━┯┷<label>━━━━━━━━━━━┯━<fs>━━━━━┯━<type>━━━┫\n"
+    printf "$AFI_TEMP_PPT_PREFIX┏━<( ${AFI_COLOR_CYAN}Device${AFI_COLOR_RESET}: %-14s)>━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n" "$AFI_DCONF_DEV"
+    printf "$AFI_TEMP_PPT_PREFIX┃  ${AFI_COLOR_CYAN}Type${AFI_COLOR_RESET}: %-5s┆ ${AFI_COLOR_CYAN}Size${AFI_COLOR_RESET}: %-8s┆ ${AFI_COLOR_CYAN}Model${AFI_COLOR_RESET}: %-32s┃\n" "$AFI_DCONF_DISKLABEL" "$(( $(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/size) * 512 / 1024 / 1024 / 1024 )) GB" "$(cat /sys/class/block/${AFI_DCONF_DEV//"/dev/"}/device/model)"
+    printf "$AFI_TEMP_PPT_PREFIX┣━━━━┯━<${AFI_COLOR_BLUE}start${AFI_COLOR_RESET}>┷━━┯━<${AFI_COLOR_BLUE}end${AFI_COLOR_RESET}>━━━━━┯┷<${AFI_COLOR_GREEN}label${AFI_COLOR_RESET}>━━━━━━━━━━━┯━<${AFI_COLOR_YELLOW}fs${AFI_COLOR_RESET}>━━━━━┯━<${AFI_COLOR_RED}type${AFI_COLOR_RESET}>━━━┫\n"
     for i in "${!AFI_TEMP_PPT_PARTLAYOUT[@]}"; do
         eval "declare -A AFI_TEMP_PPT_PART=${AFI_TEMP_PPT_PARTLAYOUT[$i]}"
-        printf "  ┃ %-3s┆ %-10s┆ %-10s┆ %-18s┆ %-9s┆ %-9s┃\n" "$i." "${AFI_TEMP_PPT_PART[start]}" "${AFI_TEMP_PPT_PART[end]}" "${AFI_TEMP_PPT_PART[label]}" "${AFI_TEMP_PPT_PART[fs]}" "${AFI_TEMP_PPT_PART[type]}"
+        printf "$AFI_TEMP_PPT_PREFIX┃ %-3s┆${AFI_COLOR_BLUE} %-10s${AFI_COLOR_RESET}┆${AFI_COLOR_BLUE} %-10s${AFI_COLOR_RESET}┆${AFI_COLOR_GREEN} %-18s${AFI_COLOR_RESET}┆${AFI_COLOR_YELLOW} %-9s${AFI_COLOR_RESET}┆${AFI_COLOR_RED} %-9s${AFI_COLOR_RESET}┃\n" "$i." "${AFI_TEMP_PPT_PART[start]}" "${AFI_TEMP_PPT_PART[end]}" "${AFI_TEMP_PPT_PART[label]}" "${AFI_TEMP_PPT_PART[fs]}" "${AFI_TEMP_PPT_PART[type]}"
     done
-    printf "  ┗━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━┷━━━━━━━━━━┛\n"
+    printf "$AFI_TEMP_PPT_PREFIX┗━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━┷━━━━━━━━━━┛\n"
     unset AFI_TEMP_PPT_PARTLAYOUT; unset AFI_TEMP_PPT_PART
 }
 # usage: AFI_AFI_CTKB <input>
@@ -1017,7 +1038,7 @@ AFI_EDITPT () {
         unset AFI_TEMP_GP_INPUT; unset AFI_TEMP_GP_CHK; unset AFI_TEMP_GP_START; unset AFI_TEMP_GP_END; unset AFI_TEMP_GP_FS; unset AFI_TEMP_GP_LABEL; unset AFI_TEMP_GP_TYPE
     }
     # configure disk
-    printf "type 'help' for help\n"; printf "Current partition layout:\n"; AFI_PRINTPT "${AFI_TEMP_PARTLAYOUT[@]}"
+    printf "type 'help' for help\n"; printf "Current partition layout:\n"; AFI_PRINTPT "  " "${AFI_TEMP_PARTLAYOUT[@]}"
     while true; do
         printf "\nInput: "; read -r AFI_TEMP_CMD; if [ -z "$AFI_TEMP_CMD" ]; then AFI_TEMP_CMD="help"; fi; case "$AFI_TEMP_CMD" in
             [Hh]* )
@@ -1046,11 +1067,11 @@ vim    - edit partition layout as text in vim
 "
                 ;;
             [Pp]* )
-                AFI_PRINTPT "${AFI_TEMP_PARTLAYOUT[@]}";;
+                AFI_PRINTPT "  " "${AFI_TEMP_PARTLAYOUT[@]}";;
             [Dd]* ) 
                 printf "Enter the index of the partition you want to delete: "; read -r AFI_TEMP_INPUT; if [[ $AFI_TEMP_INPUT -ge 0 && ${#AFI_TEMP_PARTLAYOUT[@]}-1 -ge $AFI_TEMP_INPUT ]]; then 
                     unset AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INPUT]; AFI_INFO "partition deleted"
-                else; AFI_ERROR "partition with this index does not exists"; fi ;;
+                else AFI_ERROR "partition with this index does not exists"; fi ;;
             [Mm]* ) 
                 printf "Enter the index of the partition you want to edit: "; read -r AFI_TEMP_INDEX; if [[ $AFI_TEMP_INDEX -ge 0 && ${#AFI_TEMP_PARTLAYOUT[@]}-1 -ge $AFI_TEMP_INDEX ]]; then
                     GENPART "${AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INDEX]}"; AFI_TEMP_PARTLAYOUT[$AFI_TEMP_INDEX]="$AFI_TEMP_GP_OUT"; AFI_INFO "partition with index $AFI_TEMP_INDEX has been modified"
@@ -1069,18 +1090,89 @@ vim    - edit partition layout as text in vim
     done
 }
 
+## ==================== Update Color Sheme ===============================
+AFI_UpdateCS () {
+    AFI_DEBUG "triggering AFI_UpdateCS"
+    if [ $AFI_CONF_COLORS == true ]; then # if colors are enabled
+        case "$(tput colors)" in 
+            8) 
+                # 3-bit color mode
+                AFI_COLOR_WHITE="[38;5;7m"
+                AFI_COLOR_ORANGE="[38;5;3m"
+                AFI_COLOR_CYAN="[38;5;6m"
+                AFI_COLOR_BLUE="[38;5;12;1m"
+                AFI_COLOR_GREEN="[38;5;10;1m"
+                AFI_COLOR_RED="[38;5;9;1m"
+                AFI_COLOR_YELLOW="[38;5;11;1m"
+                AFI_VAR_CMODE=8 ;;
+            16) 
+                # 4-bit color mode
+                AFI_COLOR_WHITE="[38;5;15m"
+                AFI_COLOR_ORANGE="[38;5;14m"
+                AFI_COLOR_CYAN="[38;5;12m"
+                AFI_COLOR_BLUE="[38;5;12;1m"
+                AFI_COLOR_GREEN="[38;5;10;1m"
+                AFI_COLOR_RED="[38;5;9;1m"
+                AFI_COLOR_YELLOW="[38;5;11;1m"
+                AFI_VAR_CMODE=16 ;;
+            256) 
+                # 8-bit color mode
+                AFI_COLOR_WHITE="[38;5;231;1m"
+                AFI_COLOR_ORANGE="[38;5;202;1m"
+                AFI_COLOR_CYAN="[38;5;39;1m"
+                AFI_COLOR_BLUE="[38;5;12;1m"
+                AFI_COLOR_GREEN="[38;5;10;1m"
+                AFI_COLOR_RED="[38;5;9;1m"
+                AFI_COLOR_YELLOW="[38;5;11;1m"
+                AFI_VAR_CMODE=256 ;;
+            *)
+                # 1-bit color mode
+                AFI_CONF_COLORS=false
+                AFI_VAR_CMODE=1 ;;
+        esac
+    else # if colors are disabled
+        # 1-bit color mode
+        AFI_COLOR_WHITE=""
+        AFI_COLOR_ORANGE=""
+        AFI_COLOR_CYAN=""
+        AFI_COLOR_BLUE=""
+        AFI_COLOR_GREEN=""
+        AFI_COLOR_RED=""
+        AFI_COLOR_YELLOW=""
+        AFI_CONF_COLORS=false
+        AFI_VAR_CMODE=1 
+    fi
+    AFI_DEBUG "AFI_UpdateCS: done."
+}
+
 ## ==================== output handling ==================================
 AFI_INFO () {
-    printf "${AFI_VAR_PREFIX}${AFI_VAR_INFO_PREFIX} ${1}[0m\n";
+    printf "${AFI_COLOR_WHITE}[${AFI_COLOR_CYAN}A${AFI_COLOR_ORANGE}F${AFI_COLOR_WHITE}I]"  #   PREFIX
+    printf "${AFI_COLOR_GREEN}[INFO]"       #   TYPE
+    printf "${AFI_COLOR_RESET}:  ${1}"      #   CONTENT
+    printf "${AFI_COLOR_RESET}\n"           #   RESET
 }
 AFI_DEBUG () {
-    if [ "$AFI_CONF_VERBOSE" == true ]; then printf "${AFI_VAR_PREFIX}${AFI_VAR_DEBUG_PREFIX} ${1}[0m\n"; fi
+    if [ "$AFI_CONF_VERBOSE" == true ]; then 
+        printf "${AFI_COLOR_WHITE}[${AFI_COLOR_CYAN}A${AFI_COLOR_ORANGE}F${AFI_COLOR_WHITE}I]"  #   PREFIX
+        printf "${AFI_COLOR_BLUE}[DEBUG]"   #   TYPE
+        printf "${AFI_COLOR_RESET}: ${1}"   #   CONTENT
+        printf "${AFI_COLOR_RESET}\n"       #   RESET
+    fi
 }
 AFI_WARN () {
-    if [ "$AFI_CONF_IGNORE" == false ]; then printf "${AFI_VAR_PREFIX}${AFI_VAR_WARN_PREFIX} ${1}[0m\n"; fi
+    if [ "$AFI_CONF_IGNORE" == false ]; then 
+        printf "${AFI_COLOR_WHITE}[${AFI_COLOR_CYAN}A${AFI_COLOR_ORANGE}F${AFI_COLOR_WHITE}I]"  #   PREFIX
+        printf "${AFI_COLOR_YELLOW}[WARN]"  #   TYPE
+        printf "${AFI_COLOR_RESET}:  ${1}"  #   CONTENT
+        printf "${AFI_COLOR_RESET}\n"       #   RESET
+    fi
 }
 AFI_ERROR () {
-    printf "${AFI_VAR_PREFIX}${AFI_VAR_ERROR_PREFIX} ${1}[0m\n";
+    printf "${AFI_COLOR_WHITE}[${AFI_COLOR_CYAN}A${AFI_COLOR_ORANGE}F${AFI_COLOR_WHITE}I]"  #   PREFIX
+    printf "${AFI_COLOR_RED}[ERROR]"        #   TYPE
+    printf "${AFI_COLOR_RESET}: ${1}"       #   CONTENT
+    printf "${AFI_COLOR_RESET}\n"           #   RESET
 }
 
 
