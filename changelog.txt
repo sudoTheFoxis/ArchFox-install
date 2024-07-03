@@ -1,4 +1,11 @@
-1.1.0-B 1024-07-02:
+1.1.1-B 2024-07-03:
+  + added config validation to S1
+  + added config validation to S2
+  = modified how S1 config works
+  = modified how S2 config works
+  = changed some things
+  = fixed some bugs, as always
+1.1.0-B 2024-07-02:
   + added some functionality to AFI_MAIN
   = changed how colors are stored/used
   = fixed some bugs
