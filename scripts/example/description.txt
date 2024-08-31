@@ -1,0 +1,1 @@
+This is a example script, just to check if everything works as it should

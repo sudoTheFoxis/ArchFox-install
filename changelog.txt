@@ -1,3 +1,5 @@
+1.1.3-A 2024-08-31:
+  - trashed entire code, starting over
 1.1.2-B 2024-07-07:
   = some little changes and fixes
 1.1.1-B 2024-07-03:
