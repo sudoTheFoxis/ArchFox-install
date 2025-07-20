@@ -1,0 +1,2 @@
+1.0.0-A 2025-07-20:
+    = complete rewrite
